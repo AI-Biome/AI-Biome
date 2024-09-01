@@ -39,9 +39,11 @@ import zipfile
 import requests
 import json
 from ncbi.datasets.openapi import ApiClient
-from ncbi.datasets.openapi.api.assembly_metadata_api import AssemblyMetadataApi
+#from ncbi.datasets.openapi.api.assembly_metadata_api import AssemblyMetadataApi
 from ncbi.datasets.openapi.api.genome_api import GenomeApi
 from collections import defaultdict
+import math
+import numpy as np
 
 # Parsing the input FASTA file to a dictionary
 def parse_fasta_to_dict(fasta_file):
@@ -1273,7 +1275,7 @@ class MarkerLociIdentificationStrategy(Strategy):
             for sequence in valuesList:
                 letter_count_dict[sequence[i]] = letter_count_dict.get(sequence[i], 0) + 1
             # calculate Shannon Entropy
-            entropy = shannon_entropy(letter_count_dict)
+            entropy = self.shannon_entropy(letter_count_dict)
 
             # identify the dominant letter(s)
             max_value = max(letter_count_dict.values())
@@ -1555,9 +1557,9 @@ class MarkerLociIdentificationStrategy(Strategy):
                     temp_file.write(f">{genome_in} alignment_cluster_{i}_{genome_in}\n{sequence}\n".encode())
                 temp_file.flush()
             alignment_path = align_sequences(temp_file.name)
-            df = f2p.read_multifasta(alignment_path)
+            df = read_multifasta(alignment_path)
 
-            conservedRegion = se.find_conserved_regions_shannon_entropy(df)
+            conservedRegion = find_conserved_regions_shannon_entropy(df)
             conserved_regions_positions = conserved_regions_positions + conservedRegion[0]
             conserved_regions_dominant = conserved_regions_dominant + conservedRegion[1]
         
