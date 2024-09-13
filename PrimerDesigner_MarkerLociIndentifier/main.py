@@ -2957,6 +2957,59 @@ class MarkerLociIdentificationStrategy(Strategy):
             if conserved_start <= end - window_size + 1 <= conserved_end and conserved_start <= end <= conserved_end:
                 return True
         return False
+        
+    def find_adjusted_marker_regions(self, row, max_bases=30, initial_window_size=20, min_window_size=18):
+        candidate_regions = row['candidate_marker_regions']
+        conserved_regions = row['conserved_regions']
+        region = row['region']
+        species = row['species']
+
+        output_data = []
+
+        for start, end in candidate_regions:
+            shift_left = 0
+            shift_right = 0
+            left_window_size = initial_window_size
+            right_window_size = initial_window_size
+
+            for window_size in range(initial_window_size, min_window_size - 1, -1):
+                for shift in range(max_bases + 1):
+                    # Test left end
+                    new_start = start - shift
+                    if self.is_subregion((new_start, new_start + window_size - 1), conserved_regions, window_size):
+                        shift_left = shift
+                        left_window_size = window_size
+                        break
+                else:
+                    continue
+                break
+
+            for window_size in range(initial_window_size, min_window_size - 1, -1):
+                for shift in range(max_bases + 1):
+                    # Test right end
+                    new_end = end + shift
+                    if self.is_subregion((new_end - window_size + 1, new_end), conserved_regions, window_size):
+                        shift_right = shift
+                        right_window_size = window_size
+                        break
+                else:
+                    continue
+                break
+
+            if shift_left or shift_right:
+                sequence_for_primer_design = (start - shift_left, end + shift_right)
+                output_data.append({
+                    'region': region,
+                    'species': species,
+                    'candidate_marker_region': (start, end),
+                    'sequence_for_primer_design': sequence_for_primer_design,
+                    'shift_left': shift_left,
+                    'shift_right': shift_right,
+                    'primer_binding_site_length_left': left_window_size,
+                    'primer_binding_site_length_right': right_window_size
+                })
+
+        return output_data
 
     def identify_markers(self, ):
         self.species_markers = filter_candidate_species_markers()
