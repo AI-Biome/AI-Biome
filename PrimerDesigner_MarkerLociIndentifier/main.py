@@ -2947,6 +2947,16 @@ class MarkerLociIdentificationStrategy(Strategy):
         df['candidate_marker_regions'] = df.apply(
             lambda row: self.intersect_region_lists(row['species_conserved_regions_intersection'], row['variable_regions']), axis=1)
         return df
+        
+    def is_subregion(self, region, conserved_regions, window_size):
+        """Check if a subregion of a given window size is within any of the conserved regions."""
+        start, end = region
+        for conserved_start, conserved_end in conserved_regions:
+            if conserved_start <= start <= conserved_end and conserved_start <= start + window_size - 1 <= conserved_end:
+                return True
+            if conserved_start <= end - window_size + 1 <= conserved_end and conserved_start <= end <= conserved_end:
+                return True
+        return False
 
     def identify_markers(self, ):
         self.species_markers = filter_candidate_species_markers()
