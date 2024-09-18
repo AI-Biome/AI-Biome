@@ -3010,6 +3010,19 @@ class MarkerLociIdentificationStrategy(Strategy):
                 })
 
         return output_data
+        
+    def process_marker_regions(self, df, max_bases=30, initial_window_size=20, min_window_size=18):
+        output_rows = []
+
+        for index, row in df.iterrows():
+            adjusted_regions = self.find_adjusted_marker_regions(row, max_bases, initial_window_size, min_window_size)
+            output_rows.extend(adjusted_regions)
+
+        return pd.DataFrame(output_rows, columns=[
+            'region', 'species', 'candidate_marker_region', 'sequence_for_primer_design', 
+            'shift_left', 'shift_right', 'primer_binding_site_length_left', 
+            'primer_binding_site_length_right'
+        ])
 
     def identify_markers(self, ):
         self.species_markers = filter_candidate_species_markers()
