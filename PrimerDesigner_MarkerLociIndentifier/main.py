@@ -3023,6 +3023,22 @@ class MarkerLociIdentificationStrategy(Strategy):
             'shift_left', 'shift_right', 'primer_binding_site_length_left', 
             'primer_binding_site_length_right'
         ])
+        
+    def slice_alignment(self, alignment_file, start, end, format="fasta"):
+        # Read the alignment file
+        alignment = AlignIO.read(alignment_file, format)
+        
+        # Slice the alignment
+        sliced_records = []
+        for record in alignment:
+            sliced_seq = record.seq[start:end]
+            sliced_record = SeqRecord(sliced_seq, id=record.id, description=record.description)
+            sliced_records.append(sliced_record)
+        
+        # Create a new alignment from the sliced records
+        sliced_alignment = MultipleSeqAlignment(sliced_records)
+        
+        return sliced_alignment
 
     def identify_markers(self, ):
         self.species_markers = filter_candidate_species_markers()
