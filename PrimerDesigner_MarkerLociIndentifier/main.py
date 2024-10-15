@@ -489,6 +489,35 @@ class TargetedAmpliconSequencingStrategy(Strategy):
         return primer_design_algorithm.design_primers(input_file, output_file, primer_design_params, primer_summarizing_algorithm, primer_summarizing_params, specificity_check_algorithm, specificity_check_database)
 
 
+class QuasialignmentStrategy(Strategy):
+    class Segment:
+        """
+        A class to represent an individual segment in a quasi-alignment. It includes information about the sequence ID, species, 
+        and the position of the segment within the sequence.
+        """
+        def __init__(self, seq_id: str, species: str, start: int, end: int):
+            """
+            Initialize a Segment object.
+
+            :param seq_id: The ID of the sequence from which the segment comes.
+            :param species: The species of the sequence.
+            :param start: The starting position of the segment within the sequence.
+            :param end: The ending position of the segment within the sequence.
+            """
+            self.seq_id = seq_id
+            self.species = species
+            self.start = start
+            self.end = end
+
+        def __repr__(self):
+            return f"Segment(seq_id={self.seq_id}, species={self.species}, start={self.start}, end={self.end})"
+            
+    def __init__(self):
+        pass
+
+    
+
+    
 class MarkerLociIdentificationStrategy(Strategy):
     def __init__(self):
         # Initialize the candidate_species_markers attribute as an empty DataFrame
