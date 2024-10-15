@@ -512,6 +512,45 @@ class QuasialignmentStrategy(Strategy):
         def __repr__(self):
             return f"Segment(seq_id={self.seq_id}, species={self.species}, start={self.start}, end={self.end})"
             
+    class QuasiAlignment:
+        """
+        A class to represent a quasi-alignment that contains multiple segments.
+        Each segment is associated with a sequence from a particular species.
+        """
+        def __init__(self, cluster_id: str):
+            """
+            Initialize a QuasiAlignment object.
+
+            :param cluster_id: A unique identifier for the quasi-alignment cluster.
+            """
+            self.cluster_id = cluster_id
+            self.segments = []
+
+        def add_segment(self, seq_id: str, species: str, start: int, end: int):
+            """
+            Add a segment to the quasi-alignment.
+
+            :param seq_id: The ID of the sequence from which the segment comes.
+            :param species: The species of the sequence.
+            :param start: The starting position of the segment within the sequence.
+            :param end: The ending position of the segment within the sequence.
+            """
+            segment = Segment(seq_id, species, start, end)
+            self.segments.append(segment)
+
+        def get_segments_by_species(self, species: str):
+            """
+            Get all segments that belong to a specific species.
+
+            :param species: The species to filter segments by.
+            :return: A list of segments that belong to the specified species.
+            """
+            return [segment for segment in self.segments if segment.species == species]
+
+        def __repr__(self):
+            return f"QuasiAlignment(cluster_id={self.cluster_id}, segments={self.segments})"
+
+            
     def __init__(self):
         pass
 
