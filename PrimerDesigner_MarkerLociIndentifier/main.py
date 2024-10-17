@@ -490,6 +490,24 @@ class TargetedAmpliconSequencingStrategy(Strategy):
 
 
 class QuasialignmentStrategy(Strategy):
+    # --- Internal Functions ---
+    
+    def manhattan_distance(point1, point2):
+        """
+        Calculate the Manhattan distance between two points.
+
+        :param point1: A list or tuple representing the coordinates of the first point.
+        :param point2: A list or tuple representing the coordinates of the second point.
+        :return: The Manhattan distance between the two points.
+        """
+        if len(point1) != len(point2):
+            raise ValueError("Both points must have the same number of dimensions")
+
+        distance = sum(abs(p1 - p2) for p1, p2 in zip(point1, point2))
+        return distance
+    
+    # --- Internal Classes ---
+    
     class Segment:
         """
         A class to represent an individual segment in a quasi-alignment. It includes information about the sequence ID, species, 
@@ -546,7 +564,9 @@ class QuasialignmentStrategy(Strategy):
             :return: A list of segments that belong to the specified species.
             """
             return [segment for segment in self.segments if segment.species == species]
-
+            
+        # --- Public Methods ---
+            
         def __repr__(self):
             return f"QuasiAlignment(cluster_id={self.cluster_id}, segments={self.segments})"
 
