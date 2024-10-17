@@ -506,6 +506,53 @@ class QuasialignmentStrategy(Strategy):
         distance = sum(abs(p1 - p2) for p1, p2 in zip(point1, point2))
         return distance
     
+    def process_panaroo_output(presence_absence_file, gene_data_file, output_file):
+        # Read the gene_data.csv into a dictionary
+        gene_data = {}
+        with open(gene_data_file, mode='r', newline='') as gene_data_csv:
+            gene_data_reader = csv.reader(gene_data_csv)
+            next(gene_data_reader)  # Skip the header
+
+            for row in gene_data_reader:
+                # We store the row indexed by the 4th column (annotation ID)
+                annotation_id = row[3]
+                gene_data[annotation_id] = {
+                    'species_name': row[0],  # 1st column - species name
+                    'dna_sequence': row[5],  # 6th column - DNA sequence
+                    'gene_name': row[6],     # 7th column - gene name
+                }
+
+        # Process the gene_presence_absence.csv file
+        with open(presence_absence_file, mode='r', newline='') as presence_absence_csv, \
+             open(output_file, mode='w', newline='') as output_csv:
+            
+            presence_absence_reader = csv.reader(presence_absence_csv)
+            output_writer = csv.writer(output_csv)
+            
+            # Write the header for the output CSV file
+            output_writer.writerow(['Gene Name', 'Species Name', 'DNA Sequence'])
+
+            # Skip the header of the gene_presence_absence.csv file
+            next(presence_absence_reader)
+
+            for row in presence_absence_reader:
+                # Start looping from the 4th column onwards
+                for cell in row[3:]:
+                    if cell:  # Non-empty cell, meaning there's an annotation ID
+                        annotation_id = cell.strip()
+                        
+                        # Look up the annotation ID in the gene_data dictionary
+                        if annotation_id in gene_data:
+                            species_name = gene_data[annotation_id]['species_name']
+                            dna_sequence = gene_data[annotation_id]['dna_sequence']
+                            gene_name = gene_data[annotation_id]['gene_name']
+                            
+                            # Write to output CSV in the order: gene_name, species_name, dna_sequence
+                            output_writer.writerow([gene_name, species_name, dna_sequence])
+                        else:
+                            print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
+
+    
     # --- Internal Classes ---
     
     class Segment:
