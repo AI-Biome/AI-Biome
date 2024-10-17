@@ -530,7 +530,7 @@ class QuasialignmentStrategy(Strategy):
             output_writer = csv.writer(output_csv)
             
             # Write the header for the output CSV file
-            output_writer.writerow(['Gene Name', 'Species Name', 'DNA Sequence'])
+            output_writer.writerow(['SeqID', 'Gene Name', 'Species Name', 'DNA Sequence'])
 
             # Skip the header of the gene_presence_absence.csv file
             next(presence_absence_reader)
@@ -548,7 +548,7 @@ class QuasialignmentStrategy(Strategy):
                             gene_name = gene_data[annotation_id]['gene_name']
                             
                             # Write to output CSV in the order: gene_name, species_name, dna_sequence
-                            output_writer.writerow([gene_name, species_name, dna_sequence])
+                            output_writer.writerow([annotation_id, gene_name, species_name, dna_sequence])
                         else:
                             print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
 
