@@ -589,6 +589,37 @@ class QuasialignmentStrategy(Strategy):
                             else:
                                 print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
     
+    def extract_segments(file_path, segment_length, step):
+        """
+        Processes a CSV file to cut segments of a specified length from each sequence in the file.
+        It cuts the first segment starting at the beginning, then moves to the right by a specified 
+        number of positions (step) and cut the second segment and so forth until it reaches the end of the sequence.
+        It combines all the segments from all rows into a single list.
+        
+        :param file_path: The path to the CSV file with columns 'SeqID', 'Gene Name', 'Species Name', and 'DNA Sequence'.
+        :param segment_length: The length of each segment to cut from the sequences.
+        :param step: The number of positions to move to the right after each segment is cut.
+        :return: A list containing all segments from all rows.
+        """
+        all_segments = []
+        
+        # Open and read the CSV file
+        with open(file_path, mode='r', newline='', encoding='utf-8') as csvfile:
+            reader = csv.DictReader(csvfile)
+            
+            # Loop through each row in the CSV
+            for row in reader:
+                sequence = row['DNA Sequence']  # Assuming the sequences are under the column 'sequence'
+                
+                # Loop through the sequence and extract segments of the specified length
+                for i in range(0, len(sequence), step):
+                    # Ensure we don't go beyond the end of the sequence
+                    if i + segment_length <= len(sequence):
+                        segment = sequence[i:i + segment_length]
+                        all_segments.append(segment)
+        
+        return all_segments
+        
     # --- Internal Classes ---
     
     class Segment:
@@ -603,7 +634,7 @@ class QuasialignmentStrategy(Strategy):
             :param seq_id: The ID of the sequence from which the segment comes.
             :param species: The species of the sequence.
             :param start: The starting position of the segment within the sequence.
-            :param length: The ending position of the segment within the sequence.
+            :param length: The length of the segment within the sequence.
             """
             self.seq_id = seq_id
             self.species = species
