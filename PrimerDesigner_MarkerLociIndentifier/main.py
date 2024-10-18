@@ -603,12 +603,17 @@ class QuasialignmentStrategy(Strategy):
             :param seq_id: The ID of the sequence from which the segment comes.
             :param species: The species of the sequence.
             :param start: The starting position of the segment within the sequence.
-            :param end: The ending position of the segment within the sequence.
+            :param length: The ending position of the segment within the sequence.
             """
             self.seq_id = seq_id
             self.species = species
             self.start = start
-            self.end = end
+            self.length = length
+            
+        def get_segment(self, sequence):
+            """Returns the segment of the sequence based on start and length."""
+            end = self.start + self.length
+            return sequence[self.start:end]
 
         def __repr__(self):
             return f"Segment(seq_id={self.seq_id}, species={self.species}, start={self.start}, end={self.end})"
