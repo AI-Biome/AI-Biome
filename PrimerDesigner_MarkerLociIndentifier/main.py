@@ -627,9 +627,31 @@ class QuasialignmentStrategy(Strategy):
                         # Store the Segment object in the dictionary with the starting position as the key
                         all_segments[i] = segment_obj
     
-    return all_segments
-        
         return all_segments
+        
+    def get_pmer_composition(segment, p):
+        """
+        Takes a Segment object and computes the p-mer composition of the segment.
+        The output is a dictionary where keys are p-mers and values are their counts.
+        
+        :param segment: A Segment object containing the start and length information.
+        :param p: The length of the p-mer (substring).
+        :return: A dictionary with p-mers as keys and their counts as values.
+        """
+        sequence = segment.sequence  # Assuming the segment object has a 'sequence' attribute
+        pmer_dict = {}
+        
+        # Loop through the sequence and extract p-mers
+        for i in range(len(sequence) - p + 1):
+            pmer = sequence[i:i + p]
+            
+            # Update the count of the p-mer in the dictionary
+            if pmer in pmer_dict:
+                pmer_dict[pmer] += 1
+            else:
+                pmer_dict[pmer] = 1
+        
+        return pmer_dict
         
     # --- Internal Classes ---
     
