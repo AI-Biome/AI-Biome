@@ -593,15 +593,16 @@ class QuasialignmentStrategy(Strategy):
         """
         Processes a CSV file to cut segments of a specified length from each sequence in the file.
         It cuts the first segment starting at the beginning, then moves to the right by a specified 
-        number of positions (step) and cut the second segment and so forth until it reaches the end of the sequence.
-        It combines all the segments from all rows into a single list.
-        
+        number of positions (step) and cuts the second segment and so forth until it reaches the end of the sequence.
+        Each segment is stored using the Segment class, containing gene name, species name, and sequence ID, 
+        and the dictionary returned will have keys as positions within the original sequence, and values as Segment objects.
+
         :param file_path: The path to the CSV file with columns 'SeqID', 'Gene Name', 'Species Name', and 'DNA Sequence'.
         :param segment_length: The length of each segment to cut from the sequences.
         :param step: The number of positions to move to the right after each segment is cut.
-        :return: A list containing all segments from all rows.
+        :return: A dictionary where the keys are the starting positions within the sequence, and the values are Segment objects.
         """
-        all_segments = []
+        all_segments = {}
         
         # Open and read the CSV file
         with open(file_path, mode='r', newline='', encoding='utf-8') as csvfile:
@@ -609,14 +610,24 @@ class QuasialignmentStrategy(Strategy):
             
             # Loop through each row in the CSV
             for row in reader:
-                sequence = row['DNA Sequence']  # Assuming the sequences are under the column 'sequence'
+                sequence = row['DNA Sequence']  # Assuming the sequences are under the column 'DNA Sequence'
+                gene_name = row['Gene Name']    # Assuming the gene name is under the column 'Gene Name'
+                species_name = row['Species Name']  # Assuming the species name is under 'Species Name'
+                seq_id = row['SeqID']           # Assuming the sequence ID is under the column 'SeqID'
                 
                 # Loop through the sequence and extract segments of the specified length
                 for i in range(0, len(sequence), step):
                     # Ensure we don't go beyond the end of the sequence
                     if i + segment_length <= len(sequence):
                         segment = sequence[i:i + segment_length]
-                        all_segments.append(segment)
+                        
+                        # Create a Segment object for each extracted segment
+                        segment_obj = Segment(seq_id=seq_id, species=species_name, gene_name=gene_name, segment=segment)
+                        
+                        # Store the Segment object in the dictionary with the starting position as the key
+                        all_segments[i] = segment_obj
+    
+    return all_segments
         
         return all_segments
         
@@ -627,19 +638,22 @@ class QuasialignmentStrategy(Strategy):
         A class to represent an individual segment in a quasi-alignment. It includes information about the sequence ID, species, 
         and the position of the segment within the sequence.
         """
-        def __init__(self, seq_id: str, species: str, start: int, end: int):
+        def __init__(self, seq_id: str, species_name: str, gene_name: str, start: int, length: int, sequence: str):
             """
             Initialize a Segment object.
 
             :param seq_id: The ID of the sequence from which the segment comes.
-            :param species: The species of the sequence.
+            :param species_name: The species of the sequence.
+            :param gene_name: The gene region of the sequence.
             :param start: The starting position of the segment within the sequence.
             :param length: The length of the segment within the sequence.
             """
             self.seq_id = seq_id
-            self.species = species
-            self.start = start
+            self.species_name = species
+            self.gene_name = gene
+            self.start = start      # 0-indexed
             self.length = length
+            self.sequence = sequence
             
         def get_segment(self, sequence):
             """Returns the segment of the sequence based on start and length."""
