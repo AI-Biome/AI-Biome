@@ -590,6 +590,48 @@ class QuasialignmentStrategy(Strategy):
                             else:
                                 print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
     
+    def create_quasialignments(species_dict, input_dir='output/panaroo/processed'):
+        """
+        Processes all CSV files in the specified directory by removing the '_\d+' suffix from species names in the third column.
+        For each target species in the dictionary, selects rows where the species name in the third column matches
+        the target species or any species in the associated list of non-target species.
+
+        :param species_dict: A dictionary where keys are target species and values are lists of non-target species.
+        :param input_dir: The directory containing the CSV files to be processed (default is 'output/panaroo/processed').
+        :return: A dictionary where keys are file names and values are the filtered DataFrames for each target species.
+        """
+        result_dict = {}
+
+        # Loop through all CSV files in the specified directory
+        for file_name in os.listdir(input_dir):
+            if file_name.endswith(".csv"):
+                file_path = os.path.join(input_dir, file_name)
+                
+                # Load the CSV file into a DataFrame
+                df = pd.read_csv(file_path)
+                
+                # Remove the suffix '_\d+' from the third column (Species name)
+                df.iloc[:, 2] = df.iloc[:, 2].str.replace(r'_\d+', '', regex=True)  # Assuming third column is at index 2
+                
+                # Initialize an empty DataFrame to store filtered rows for this file
+                filtered_df = pd.DataFrame()
+                
+                # Loop through the keys (target species) and filter rows based on species name
+                for target_species, non_target_species_list in species_dict.items():
+                    # Create a list of species to filter: target species + non-target species
+                    species_to_keep = [target_species] + non_target_species_list
+                    
+                    # Filter rows where the species name (third column) matches any in species_to_keep
+                    temp_df = df[df.iloc[:, 2].isin(species_to_keep)]
+                    
+                    # Append filtered rows to the overall DataFrame
+                    filtered_df = pd.concat([filtered_df, temp_df], ignore_index=True)
+                
+                # Store the filtered DataFrame in the result dictionary, keyed by the file name
+                result_dict[file_name] = filtered_df
+        
+        return result_dict
+    
     def extract_segments(file_path, segment_length, step):
         """
         Processes a CSV file to cut segments of a specified length from each sequence in the file.
