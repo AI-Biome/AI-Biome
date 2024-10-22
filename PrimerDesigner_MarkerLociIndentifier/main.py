@@ -633,7 +633,6 @@ class QuasialignmentStrategy(Strategy):
                 # Prepare the data for extract_segments_from_list
                 entries = []
                 for _, row in filtered_df.iterrows():
-                    # Assuming species is in the 3rd column, gene name in 2nd column, seq ID in 1st column, and DNA sequence in 4th
                     species_name = row[2]
                     gene_name = row[1]
                     seq_id = row[0]
@@ -695,12 +694,13 @@ class QuasialignmentStrategy(Strategy):
         Processes a list of sequences and extracts segments of a specified length.
         It cuts the first segment starting at the beginning, then moves to the right by a specified 
         number of positions (step) and cuts the second segment, and so forth until it reaches the end of the sequence.
-        Each segment is stored using the Segment class, containing species name, gene name, and sequence ID.
+        Each segment is stored in a dictionary where the keys are starting positions, and the values
+        are lists of Segment objects (to handle multiple segments starting at the same position).
 
         :param entries: A list of tuples, where each tuple contains species name, gene name, sequence ID, and the DNA sequence.
         :param segment_length: The length of each segment to cut from the sequences.
         :param step: The number of positions to move to the right after each segment is cut.
-        :return: A dictionary where the keys are the starting positions within the sequence, and the values are Segment objects.
+        :return: A dictionary where the keys are starting positions within the sequence, and the values are lists of Segment objects.
         """
         all_segments = {}
 
@@ -718,8 +718,12 @@ class QuasialignmentStrategy(Strategy):
                     # Create a Segment object for each extracted segment
                     segment_obj = Segment(seq_id=seq_id, species=species_name, gene_name=gene_name, segment=segment)
                     
-                    # Store the Segment object in the dictionary with the starting position as the key
-                    all_segments[i] = segment_obj
+                    # If the position is already a key, append the segment to the list
+                    if i in all_segments:
+                        all_segments[i].append(segment_obj)
+                    else:
+                        # If it's a new position, create a list and add the segment
+                        all_segments[i] = [segment_obj]
         
         return all_segments
         
