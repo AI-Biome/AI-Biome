@@ -653,10 +653,10 @@ class QuasialignmentStrategy(Strategy):
             
             # Loop through each row in the CSV
             for row in reader:
-                sequence = row['DNA Sequence']  # Assuming the sequences are under the column 'DNA Sequence'
-                gene_name = row['Gene Name']    # Assuming the gene name is under the column 'Gene Name'
-                species_name = row['Species Name']  # Assuming the species name is under 'Species Name'
-                seq_id = row['SeqID']           # Assuming the sequence ID is under the column 'SeqID'
+                sequence = row['DNA Sequence']
+                gene_name = row['Gene Name']
+                species_name = row['Species Name']
+                seq_id = row['SeqID']
                 
                 # Loop through the sequence and extract segments of the specified length
                 for i in range(0, len(sequence), step):
@@ -670,6 +670,39 @@ class QuasialignmentStrategy(Strategy):
                         # Store the Segment object in the dictionary with the starting position as the key
                         all_segments[i] = segment_obj
     
+        return all_segments
+        
+    def extract_segments_from_list(entries, segment_length, step):
+        """
+        Processes a list of sequences and extracts segments of a specified length.
+        It cuts the first segment starting at the beginning, then moves to the right by a specified 
+        number of positions (step) and cuts the second segment, and so forth until it reaches the end of the sequence.
+        Each segment is stored using the Segment class, containing species name, gene name, and sequence ID.
+
+        :param entries: A list of tuples, where each tuple contains species name, gene name, sequence ID, and the DNA sequence.
+        :param segment_length: The length of each segment to cut from the sequences.
+        :param step: The number of positions to move to the right after each segment is cut.
+        :return: A dictionary where the keys are the starting positions within the sequence, and the values are Segment objects.
+        """
+        all_segments = {}
+
+        # Loop through the provided list of entries
+        for species_name, gene_name, seq_id, sequence in entries:
+            # Ensure the sequence is in uppercase
+            sequence = sequence.upper()
+
+            # Loop through the sequence and extract segments of the specified length
+            for i in range(0, len(sequence), step):
+                # Ensure we don't go beyond the end of the sequence
+                if i + segment_length <= len(sequence):
+                    segment = sequence[i:i + segment_length]
+                    
+                    # Create a Segment object for each extracted segment
+                    segment_obj = Segment(seq_id=seq_id, species=species_name, gene_name=gene_name, segment=segment)
+                    
+                    # Store the Segment object in the dictionary with the starting position as the key
+                    all_segments[i] = segment_obj
+        
         return all_segments
         
     def get_pmer_composition(segment, p):
