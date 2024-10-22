@@ -590,15 +590,18 @@ class QuasialignmentStrategy(Strategy):
                             else:
                                 print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
     
-    def create_quasialignments(species_dict, input_dir='output/panaroo/processed'):
+    def create_quasialignments(species_dict, segment_length, step, input_dir='output/panaroo/processed'):
         """
         Processes all CSV files in the specified directory by removing the '_\d+' suffix from species names in the third column.
         For each target species in the dictionary, selects rows where the species name in the third column matches
-        the target species or any species in the associated list of non-target species.
+        the target species or any species in the associated list of non-target species. Then extracts segments
+        using the extract_segments_from_list function.
 
         :param species_dict: A dictionary where keys are target species and values are lists of non-target species.
+        :param segment_length: The length of each segment to cut from the sequences.
+        :param step: The number of positions to move to the right after each segment is cut.
         :param input_dir: The directory containing the CSV files to be processed (default is 'output/panaroo/processed').
-        :return: A dictionary where keys are file names and values are the filtered DataFrames for each target species.
+        :return: A dictionary where keys are file names and values are dictionaries of extracted segments for each target species.
         """
         result_dict = {}
 
@@ -627,8 +630,23 @@ class QuasialignmentStrategy(Strategy):
                     # Append filtered rows to the overall DataFrame
                     filtered_df = pd.concat([filtered_df, temp_df], ignore_index=True)
                 
-                # Store the filtered DataFrame in the result dictionary, keyed by the file name
-                result_dict[file_name] = filtered_df
+                # Prepare the data for extract_segments_from_list
+                entries = []
+                for _, row in filtered_df.iterrows():
+                    # Assuming species is in the 3rd column, gene name in 2nd column, seq ID in 1st column, and DNA sequence in 4th
+                    species_name = row[2]
+                    gene_name = row[1]
+                    seq_id = row[0]
+                    sequence = row[3]
+
+                    # Append the tuple to the entries list
+                    entries.append((species_name, gene_name, seq_id, sequence))
+                
+                # Extract segments from the filtered data
+                segments_dict = extract_segments_from_list(entries, segment_length, step)
+                
+                # Store the segments in the result dictionary keyed by file name
+                result_dict[file_name] = segments_dict
         
         return result_dict
     
