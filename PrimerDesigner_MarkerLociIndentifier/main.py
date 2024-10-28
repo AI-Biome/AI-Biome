@@ -727,6 +727,42 @@ class QuasialignmentStrategy(Strategy):
         
         return all_segments
         
+    def assign_segment_to_closest_quasialignment(quasi_alignments, segment, distance_func, threshold):
+        """
+        Adds a Segment object to the closest quasi-alignment based on its distance to each quasi-alignment's medoid.
+        If no quasi-alignment is found within the threshold distance, creates a new QuasiAlignment object and adds the Segment object to it.
+
+        :param quasi_alignments: A list of QuasiAlignment objects.
+        :param segment: A Segment object to be added.
+        :param distance_func: A function to calculate the distance between two pmer_profiles.
+        :param threshold: The maximum allowable distance for adding the Segment to an existing QuasiAlignment.
+        :return: The updated list of QuasiAlignment objects.
+        """
+        best_fit_quasi_alignment = None
+        min_distance = float('inf')
+        
+        # Iterate through each QuasiAlignment to find the best fit within the threshold
+        for quasi_alignment in quasi_alignments:
+            if quasi_alignment.medoid is not None:
+                # Calculate the distance between the segment and the medoid of the current QuasiAlignment
+                distance = distance_func(segment.pmer_profile, quasi_alignment.medoid.pmer_profile)
+                
+                # Check if this QuasiAlignment is a better fit (within threshold and lower distance)
+                if distance < threshold and distance < min_distance:
+                    best_fit_quasi_alignment = quasi_alignment
+                    min_distance = distance
+        
+        # Add the segment to the best-fit QuasiAlignment or create a new one if none are within threshold
+        if best_fit_quasi_alignment:
+            best_fit_quasi_alignment.add_segment(segment)
+        else:
+            # Create a new QuasiAlignment and add the segment to it
+            new_quasi_alignment = QuasiAlignment()
+            new_quasi_alignment.add_segment(segment)
+            quasi_alignments.append(new_quasi_alignment)
+        
+        return quasi_alignments
+        
     # --- Internal Classes ---
     
     class Segment:
