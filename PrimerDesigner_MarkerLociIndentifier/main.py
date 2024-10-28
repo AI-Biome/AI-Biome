@@ -590,18 +590,21 @@ class QuasialignmentStrategy(Strategy):
                             else:
                                 print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
     
-    def create_quasialignments(species_dict, segment_length, step, input_dir='output/panaroo/processed'):
+    def create_quasialignments(species_dict, segment_length, step, distance_func, threshold, input_dir='output/panaroo/processed'):
         """
         Processes all CSV files in the specified directory by removing the '_\d+' suffix from species names in the third column.
         For each target species in the dictionary, selects rows where the species name in the third column matches
         the target species or any species in the associated list of non-target species. Then extracts segments
-        using the extract_segments_from_list function.
+        using the extract_segments_from_list function. Finally, clusters segments based on p-mer profiles.
 
         :param species_dict: A dictionary where keys are target species and values are lists of non-target species.
         :param segment_length: The length of each segment to cut from the sequences.
         :param step: The number of positions to move to the right after each segment is cut.
+        :param distance_func: A function to calculate the distance between two pmer_profiles.
+        :param threshold: The maximum allowable distance for adding a Segment to an existing QuasiAlignment.
         :param input_dir: The directory containing the CSV files to be processed (default is 'output/panaroo/processed').
-        :return: A dictionary where keys are file names and values are dictionaries of extracted segments for each target species.
+        :return: A dictionary where keys are file names and values are dictionaries with positions as keys
+                 and lists of QuasiAlignment objects as values.
         """
         result_dict = {}
 
@@ -621,31 +624,39 @@ class QuasialignmentStrategy(Strategy):
                 
                 # Loop through the keys (target species) and filter rows based on species name
                 for target_species, non_target_species_list in species_dict.items():
-                    # Create a list of species to filter: target species + non-target species
                     species_to_keep = [target_species] + non_target_species_list
-                    
-                    # Filter rows where the species name (third column) matches any in species_to_keep
                     temp_df = df[df.iloc[:, 2].isin(species_to_keep)]
-                    
-                    # Append filtered rows to the overall DataFrame
                     filtered_df = pd.concat([filtered_df, temp_df], ignore_index=True)
                 
                 # Prepare the data for extract_segments_from_list
                 entries = []
                 for _, row in filtered_df.iterrows():
-                    species_name = row[2]
-                    gene_name = row[1]
-                    seq_id = row[0]
-                    sequence = row[3]
-
-                    # Append the tuple to the entries list
+                    species_name = row[2]  # Third column is the species name
+                    gene_name = row[1]     # Second column is the gene name
+                    seq_id = row[0]        # First column is the sequence ID
+                    sequence = row[3]      # Fourth column is the DNA sequence
                     entries.append((species_name, gene_name, seq_id, sequence))
                 
                 # Extract segments from the filtered data
                 segments_dict = extract_segments_from_list(entries, segment_length, step)
                 
-                # Store the segments in the result dictionary keyed by file name
-                result_dict[file_name] = segments_dict
+                # Initialize a dictionary to store the QuasiAlignment objects for each position
+                file_quasialignments = {}
+
+                # Loop through each position in segments_dict
+                for position, segment_list in segments_dict.items():
+                    quasi_alignments = []  # List to hold quasi-alignments for the current position
+
+                    # Process each Segment in the segment_list at this position
+                    for segment in segment_list:
+                        # Use add_segment_to_quasialignment to assign the segment to an existing or new cluster
+                        quasi_alignments = assign_segment_to_closest_quasialignment(quasi_alignments, segment, distance_func, threshold)
+                    
+                    # Store the list of QuasiAlignments for this position
+                    file_quasialignments[position] = quasi_alignments
+                
+                # Store the clusters for this file in the result dictionary
+                result_dict[file_name] = quasialignments
         
         return result_dict
     
