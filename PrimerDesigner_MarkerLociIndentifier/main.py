@@ -716,7 +716,7 @@ class QuasialignmentStrategy(Strategy):
                     segment = sequence[i:i + segment_length]
                     
                     # Create a Segment object for each extracted segment
-                    segment_obj = Segment(seq_id=seq_id, species=species_name, gene_name=gene_name, segment=segment)
+                    segment_obj = Segment(seq_id=seq_id, species_name=species_name, gene_name=gene_name, start=i, length=segment_length, sequence=segment, p=3)
                     
                     # If the position is already a key, append the segment to the list
                     if i in all_segments:
@@ -727,36 +727,6 @@ class QuasialignmentStrategy(Strategy):
         
         return all_segments
         
-    def get_pmer_composition(segment, p):
-        """
-        Takes a Segment object and computes the p-mer composition of the segment.
-        The output is a dictionary where keys are all possible p-mers (substrings of length p) composed of A, C, T, G, 
-        and values are their counts in the segment's sequence. P-mers are stored in uppercase.
-
-        :param segment: A Segment object containing the start and length information.
-        :param p: The length of the p-mer (substring).
-        :return: A dictionary with all possible p-mers as keys and their counts as values.
-        """
-        sequence = segment.segment.upper()  # Convert the entire sequence to uppercase
-        pmer_dict = {}
-
-        # Generate all possible p-mer combinations using A, C, T, G
-        bases = ['A', 'C', 'T', 'G']
-        possible_pm = [''.join(pmer) for pmer in itertools.product(bases, repeat=p)]
-
-        # Initialize the dictionary with all possible p-mers set to 0
-        pmer_dict = {pmer: 0 for pmer in possible_pm}
-
-        # Loop through the sequence and extract p-mers
-        for i in range(len(sequence) - p + 1):  # Ensure we don't go beyond the sequence
-            pmer = sequence[i:i + p]
-            
-            # Update the count of the p-mer in the dictionary
-            if pmer in pmer_dict:
-                pmer_dict[pmer] += 1
-        
-        return pmer_dict
-        
     # --- Internal Classes ---
     
     class Segment:
@@ -764,7 +734,7 @@ class QuasialignmentStrategy(Strategy):
         A class to represent an individual segment in a quasi-alignment. It includes information about the sequence ID, species, 
         and the position of the segment within the sequence.
         """
-        def __init__(self, seq_id: str, species_name: str, gene_name: str, start: int, length: int, sequence: str):
+        def __init__(self, seq_id: str, species_name: str, gene_name: str, start: int, length: int, sequence: str, p: int):
             """
             Initialize a Segment object.
 
@@ -780,11 +750,55 @@ class QuasialignmentStrategy(Strategy):
             self.start = start      # 0-indexed
             self.length = length
             self.sequence = sequence
+            self.pmer_profile = self.get_pmer_composition(self, p)
             
         def get_segment(self, sequence):
             """Returns the segment of the sequence based on start and length."""
             end = self.start + self.length
             return sequence[self.start:end]
+
+        def get_pmer_composition(segment, p):
+            """
+            Takes a Segment object and computes the p-mer composition of the segment.
+            The output is a dictionary where keys are all possible p-mers (substrings of length p) composed of A, C, T, G, 
+            and values are their counts in the segment's sequence. P-mers are stored in uppercase.
+
+            :param segment: A Segment object containing the start and length information.
+            :param p: The length of the p-mer (substring).
+            :return: A dictionary with all possible p-mers as keys and their counts as values.
+            """
+            sequence = segment.segment.upper()  # Convert the entire sequence to uppercase
+            pmer_dict = {}
+
+            # Generate all possible p-mer combinations using A, C, T, G
+            bases = ['A', 'C', 'T', 'G']
+            possible_pm = [''.join(pmer) for pmer in itertools.product(bases, repeat=p)]
+
+            # Initialize the dictionary with all possible p-mers set to 0
+            pmer_dict = {pmer: 0 for pmer in possible_pm}
+
+            # Loop through the sequence and extract p-mers
+            for i in range(len(sequence) - p + 1):  # Ensure we don't go beyond the sequence
+                pmer = sequence[i:i + p]
+                
+                # Update the count of the p-mer in the dictionary
+                if pmer in pmer_dict:
+                    pmer_dict[pmer] += 1
+            
+            return pmer_dict
+        
+        def get_distance(self, other_segment, distance_func):
+            """
+            Calculates the distance between this segment and another segment using a specified distance function.
+            
+            :param other_segment: The other Segment object to calculate the distance to.
+            :param distance_func: A function that takes two lists (or tuples) as input and returns the distance between them.
+            :return: The distance between the two p-mer profiles.
+            """
+            if not callable(distance_func):
+                raise ValueError("distance_func must be a callable function")
+            
+            return distance_func(self.pmer_profile, other_segment.pmer_profile)
 
         def __repr__(self):
             return f"Segment(seq_id={self.seq_id}, species={self.species}, start={self.start}, end={self.end})"
@@ -802,18 +816,38 @@ class QuasialignmentStrategy(Strategy):
             """
             self.cluster_id = cluster_id
             self.segments = []
+            self.medoid = None
 
         def add_segment(self, seq_id: str, species: str, start: int, end: int):
             """
-            Add a segment to the quasi-alignment.
-
-            :param seq_id: The ID of the sequence from which the segment comes.
-            :param species: The species of the sequence.
-            :param start: The starting position of the segment within the sequence.
-            :param end: The ending position of the segment within the sequence.
+            Adds a new Segment to the quasi-alignment and recalculates the medoid.
+            The medoid is the segment with the smallest average distance to all other segments.
+            
+            :param new_segment: Segment object to be added to the quasi-alignment.
             """
-            segment = Segment(seq_id, species, start, end)
-            self.segments.append(segment)
+            # Add the new segment to the list
+            self.segments.append(new_segment)
+            
+            # Recalculate the medoid if there is more than one segment
+            if len(self.segments) > 1:
+                # Calculate the average distance of each segment to all others
+                min_avg_distance = float('inf')
+                new_medoid = None
+
+                for segment in self.segments:
+                    distances = [segment.get_distance(other, manhattan_distance) for other in self.segments if other != segment]
+                    avg_distance = np.mean(distances)
+                    
+                    # Update the medoid if a smaller average distance is found
+                    if avg_distance < min_avg_distance:
+                        min_avg_distance = avg_distance
+                        new_medoid = segment
+
+                # Set the new medoid
+                self.medoid = new_medoid
+            else:
+                # If only one segment, it's the medoid by default
+                self.medoid = new_segment
 
         def get_segments_by_species(self, species: str):
             """
@@ -824,18 +858,15 @@ class QuasialignmentStrategy(Strategy):
             """
             return [segment for segment in self.segments if segment.species == species]
             
-        # --- Public Methods ---
+    # --- Public Methods ---
             
-        def __repr__(self):
-            return f"QuasiAlignment(cluster_id={self.cluster_id}, segments={self.segments})"
+    def __repr__(self):
+        return f"QuasiAlignment(cluster_id={self.cluster_id}, segments={self.segments}, medoid={self.medoid})"
 
-            
     def __init__(self):
         pass
 
-    
-
-    
+   
 class MarkerLociIdentificationStrategy(Strategy):
     def __init__(self):
         # Initialize the candidate_species_markers attribute as an empty DataFrame
