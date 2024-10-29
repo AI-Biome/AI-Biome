@@ -490,7 +490,7 @@ class TargetedAmpliconSequencingStrategy(Strategy):
         return primer_design_algorithm.design_primers(input_file, output_file, primer_design_params, primer_summarizing_algorithm, primer_summarizing_params, specificity_check_algorithm, specificity_check_database)
 
 
-class QuasialignmentStrategy(Strategy):
+class QuasiAlignmentStrategy(Strategy):
     # --- Internal Functions ---
     
     def manhattan_distance(point1, point2):
@@ -617,7 +617,7 @@ class QuasialignmentStrategy(Strategy):
                 df = pd.read_csv(file_path)
                 
                 # Remove the suffix '_\d+' from the third column (Species name)
-                df.iloc[:, 2] = df.iloc[:, 2].str.replace(r'_\d+', '', regex=True)  # Assuming third column is at index 2
+                df.iloc[:, 2] = df.iloc[:, 2].str.replace(r'_\d+', '', regex=True)
                 
                 # Initialize an empty DataFrame to store filtered rows for this file
                 filtered_df = pd.DataFrame()
@@ -727,7 +727,7 @@ class QuasialignmentStrategy(Strategy):
                     segment = sequence[i:i + segment_length]
                     
                     # Create a Segment object for each extracted segment
-                    segment_obj = Segment(seq_id=seq_id, species_name=species_name, gene_name=gene_name, start=i, length=segment_length, sequence=segment, p=3)
+                    segment_obj = Segment(seq_id=seq_id, species_name=species_name, gene_name=gene_name, start=i, length=segment_length, sequence=segment)
                     
                     # If the position is already a key, append the segment to the list
                     if i in all_segments:
@@ -774,6 +774,70 @@ class QuasialignmentStrategy(Strategy):
         
         return quasi_alignments
         
+    def evaluate_informative_positions(quasialignment_data, species_dict, threshold):
+        """
+        Evaluates each file (gene region) based on the proportion of informative positions.
+        A position is considered informative if, for all target species, the proportion of segments belonging
+        to a target species without any non-target species segments in the same quasi-alignment meets the threshold.
+
+        :param quasialignment_data: A dictionary where keys are file names, values are dictionaries with positions as keys
+                                    and lists of QuasiAlignment objects as values.
+        :param species_dict: A dictionary where keys are target species and values are lists of non-target species.
+        :param threshold: The minimum proportion of target species segments at a position without non-target species
+                          required to consider the position informative.
+        :return: A dictionary where keys are file names and values are the proportions of informative positions.
+        """
+        file_informative_proportions = {}
+
+        # Loop through each file and its corresponding quasi-alignments by position
+        for file_name, positions_dict in quasialignment_data.items():
+            informative_count = 0  # Counter for informative positions
+            total_positions = len(positions_dict)  # Total number of positions
+
+            # Loop through each position in the file
+            for position, quasi_alignments in positions_dict.items():
+                # Flag to track if this position is informative for all target species
+                is_informative_for_all_targets = True
+
+                # Loop through each target species in species_dict
+                for target_species, non_target_species_list in species_dict.items():
+                    # Count target species segments in quasi-alignments without non-target species
+                    target_only_count = 0
+                    total_target_segments = 0
+
+                    # Evaluate each QuasiAlignment at the current position
+                    for quasi_alignment in quasi_alignments:
+                        # Check if the quasi-alignment contains any segments from the non-target species
+                        contains_non_target = any(
+                            segment.species in non_target_species_list for segment in quasi_alignment.segments
+                        )
+
+                        # Count segments from the target species in this quasi-alignment
+                        target_segments = [segment for segment in quasi_alignment.segments if segment.species == target_species]
+                        total_target_segments += len(target_segments)
+
+                        # Only consider the quasi-alignment if no non-target species segments are present
+                        if not contains_non_target:
+                            target_only_count += len(target_segments)
+
+                    # Calculate the proportion of target-only segments at this position
+                    if total_target_segments > 0:
+                        target_proportion = target_only_count / total_target_segments
+
+                        # If the proportion does not meet the threshold, mark position as non-informative and break
+                        if target_proportion < threshold:
+                            is_informative_for_all_targets = False
+                            break
+
+                # If position is informative for all target species, increment informative count
+                if is_informative_for_all_targets:
+                    informative_count += 1
+
+            # Calculate and store the proportion of informative positions for this file
+            file_informative_proportions[file_name] = informative_count / total_positions if total_positions > 0 else 0
+
+        return file_informative_proportions
+        
     # --- Internal Classes ---
     
     class Segment:
@@ -781,7 +845,7 @@ class QuasialignmentStrategy(Strategy):
         A class to represent an individual segment in a quasi-alignment. It includes information about the sequence ID, species, 
         and the position of the segment within the sequence.
         """
-        def __init__(self, seq_id: str, species_name: str, gene_name: str, start: int, length: int, sequence: str, p: int):
+        def __init__(self, seq_id: str, species_name: str, gene_name: str, start: int, length: int, sequence: str, p: int = 3):
             """
             Initialize a Segment object.
 
@@ -912,6 +976,9 @@ class QuasialignmentStrategy(Strategy):
 
     def __init__(self):
         pass
+        
+    def design_primers(self, input_file, output_file, primer_design_algorithm: PrimerDesignAlgorithm, primer_design_params, primer_summarizing_algorithm: PrimerSummarizerAlgorithm, primer_summarizing_params, specificity_check_algorithm: SpecificityCheckAlgorithm, primer_specificity_params, specificity_check_database):
+        return primer_design_algorithm.design_primers(input_file, output_file, primer_design_params, primer_summarizing_algorithm, primer_summarizing_params, specificity_check_algorithm, specificity_check_database)
 
    
 class MarkerLociIdentificationStrategy(Strategy):
@@ -3725,11 +3792,12 @@ class StrategyContext:
             self._amplicon_sequences = parse_fasta_by_amplicons(self._input_file)
 
     def design_primers(self, primer_design_algorithm: PrimerDesignAlgorithm, primer_design_params, primer_summarizing_algorithm: PrimerSummarizerAlgorithm, primer_summarizing_params, specificity_check_algorithm: SpecificityCheckAlgorithm, primer_specificity_params):
-        if isinstance(self._strategy, MarkerLociIdentificationStrategy):
+        # if isinstance(self._strategy, MarkerLociIdentificationStrategy):
             self._strategy.identify_markers()
 
             # todo:  loop through marker loci, design primers for each of them and output them to a file
-
+        if isinstance(self._strategy, QuasiAlignmentStrategy):
+            
         elif isinstance(self._strategy, TargetedAmpliconSequencingStrategy):
             # designed_primers = {}
 
@@ -3742,7 +3810,7 @@ class StrategyContext:
 
 
 if __name__ == "__main__":
-    ray.init()
+    # ray.init()
 
     parser = argparse.ArgumentParser(description="")
 
@@ -3781,8 +3849,9 @@ if __name__ == "__main__":
     if args.strategy == 'amplicon':
         strategy = TargetedAmpliconSequencingStrategy()
     elif args.strategy == 'marker':
-        feature_extractor = MarkerLociIdentificationStrategy._Word2VecFeatureExtractor()  # todo: select feature extraction algorithm based on the CLI parameters
-        strategy = MarkerLociIdentificationStrategy(args.input_file, feature_extractor)
+        #feature_extractor = MarkerLociIdentificationStrategy._Word2VecFeatureExtractor()  # todo: select feature extraction algorithm based on the CLI parameters
+        #strategy = MarkerLociIdentificationStrategy(args.input_file, feature_extractor)
+        strategy = QuasiAlignmentStrategy(args.input_file, )
     else:
         raise ValueError("Unknown strategy specified.")
 
@@ -3829,4 +3898,4 @@ if __name__ == "__main__":
 
     context.design_primers(primer_design_algorithm, primer_design_params_converted, primer_summarizing_algorithm, primer_summarizing_params, specificity_check_algorithm, primer_specificity_params_converted)
 
-    ray.shutdown()
+    # ray.shutdown()
