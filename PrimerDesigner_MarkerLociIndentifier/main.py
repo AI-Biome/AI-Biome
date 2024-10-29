@@ -43,6 +43,7 @@ from ncbi.datasets.openapi.api.assembly_metadata_api import AssemblyMetadataApi
 from ncbi.datasets.openapi.api.genome_api import GenomeApi
 from collections import defaultdict
 import itertools
+from collections import Counter
 
 # Parsing the input FASTA file to a dictionary
 def parse_fasta_to_dict(fasta_file):
@@ -493,7 +494,7 @@ class TargetedAmpliconSequencingStrategy(Strategy):
 class QuasiAlignmentStrategy(Strategy):
     # --- Internal Functions ---
     
-    def manhattan_distance(point1, point2):
+    def manhattan_distance(self, point1, point2):
         """
         Calculate the Manhattan distance between two points.
 
@@ -507,7 +508,7 @@ class QuasiAlignmentStrategy(Strategy):
         distance = sum(abs(p1 - p2) for p1, p2 in zip(point1, point2))
         return distance
     
-    def process_panaroo_output(presence_absence_file, gene_data_file):
+    def process_panaroo_output(self, presence_absence_file="output/panaroo/gene_presence_absence.csv", gene_data_file="output/panaroo/gene_data.csv"):
         """
         Process Panaroo output files and generate individual CSV files for each gene.
 
@@ -590,7 +591,7 @@ class QuasiAlignmentStrategy(Strategy):
                             else:
                                 print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
     
-    def create_quasialignments(species_dict, segment_length, step, distance_func, threshold, input_dir='output/panaroo/processed'):
+    def create_quasialignments(self, species_dict, segment_length, step, distance_func, threshold, input_dir='output/panaroo/processed'):
         """
         Processes all CSV files in the specified directory by removing the '_\d+' suffix from species names in the third column.
         For each target species in the dictionary, selects rows where the species name in the third column matches
@@ -638,7 +639,7 @@ class QuasiAlignmentStrategy(Strategy):
                     entries.append((species_name, gene_name, seq_id, sequence))
                 
                 # Extract segments from the filtered data
-                segments_dict = extract_segments_from_list(entries, segment_length, step)
+                segments_dict = self.extract_segments_from_list(entries, segment_length, step)
                 
                 # Initialize a dictionary to store the QuasiAlignment objects for each position
                 file_quasialignments = {}
@@ -650,7 +651,7 @@ class QuasiAlignmentStrategy(Strategy):
                     # Process each Segment in the segment_list at this position
                     for segment in segment_list:
                         # Use add_segment_to_quasialignment to assign the segment to an existing or new cluster
-                        quasi_alignments = assign_segment_to_closest_quasialignment(quasi_alignments, segment, distance_func, threshold)
+                        quasi_alignments = self.assign_segment_to_closest_quasialignment(quasi_alignments, segment, distance_func, threshold)
                     
                     # Store the list of QuasiAlignments for this position
                     file_quasialignments[position] = quasi_alignments
@@ -660,7 +661,7 @@ class QuasiAlignmentStrategy(Strategy):
         
         return result_dict
     
-    def extract_segments(file_path, segment_length, step):
+    def extract_segments(self, file_path, segment_length, step):
         """
         Processes a CSV file to cut segments of a specified length from each sequence in the file.
         It cuts the first segment starting at the beginning, then moves to the right by a specified 
@@ -700,7 +701,7 @@ class QuasiAlignmentStrategy(Strategy):
     
         return all_segments
         
-    def extract_segments_from_list(entries, segment_length, step):
+    def extract_segments_from_list(self, entries, segment_length, step):
         """
         Processes a list of sequences and extracts segments of a specified length.
         It cuts the first segment starting at the beginning, then moves to the right by a specified 
@@ -738,7 +739,7 @@ class QuasiAlignmentStrategy(Strategy):
         
         return all_segments
         
-    def assign_segment_to_closest_quasialignment(quasi_alignments, segment, distance_func, threshold):
+    def assign_segment_to_closest_quasialignment(self, quasi_alignments, segment, distance_func, threshold):
         """
         Adds a Segment object to the closest quasi-alignment based on its distance to each quasi-alignment's medoid.
         If no quasi-alignment is found within the threshold distance, creates a new QuasiAlignment object and adds the Segment object to it.
@@ -774,7 +775,7 @@ class QuasiAlignmentStrategy(Strategy):
         
         return quasi_alignments
         
-    def evaluate_informative_positions(quasialignment_data, species_dict, threshold):
+    def evaluate_informative_positions(self, quasialignment_data, species_dict, threshold):
         """
         Evaluates each file (gene region) based on the proportion of informative positions.
         A position is considered informative if, for all target species, the proportion of segments belonging
@@ -837,7 +838,76 @@ class QuasiAlignmentStrategy(Strategy):
             file_informative_proportions[file_name] = informative_count / total_positions if total_positions > 0 else 0
 
         return file_informative_proportions
-        
+
+    def design_degenerate_primers(self, input_csv, output_csv):
+        """
+        Designs primers for each sequence in a CSV file using Primer3, creates consensus primer sequences
+        for each target species, and outputs the consensus sequences to a CSV file.
+
+        :param input_csv: Path to the input CSV file containing columns 'Gene Name', 'Species Name', 'DNA Sequence'.
+        :param output_csv: Path to the output CSV file to save consensus primer sequences.
+        """
+        df = pd.read_csv(input_csv)
+        species_primers = {}
+
+        for target_species in self.species_dict.keys():
+            forward_primers = []
+            reverse_primers = []
+
+            # Filter the DataFrame to get sequences for the target species
+            target_df = df[df['Species Name'] == target_species]
+
+            for _, row in target_df.iterrows():
+                sequence = row['DNA Sequence']
+                # Set sequence in primer parameters and design primers
+                self.primer_parameters['SEQUENCE_TEMPLATE'] = sequence
+                primers = primer3.bindings.designPrimers({}, self.primer_parameters)
+
+                # Store forward and reverse primers if available
+                if 'PRIMER_LEFT_0_SEQUENCE' in primers and 'PRIMER_RIGHT_0_SEQUENCE' in primers:
+                    forward_primers.append(primers['PRIMER_LEFT_0_SEQUENCE'])
+                    reverse_primers.append(primers['PRIMER_RIGHT_0_SEQUENCE'])
+
+            # Calculate consensus sequences for forward and reverse primers for this species
+            forward_consensus = self.calculate_consensus(forward_primers)
+            reverse_consensus = self.calculate_consensus(reverse_primers)
+
+            # Store the consensus sequences for the species
+            species_primers[target_species] = {
+                'Forward': forward_consensus,
+                'Reverse': reverse_consensus
+            }
+
+        # Write consensus primers to CSV
+        with open(output_csv, mode='w', newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(['Species', 'Primer Type', 'Consensus Sequence'])
+            for species, primers in species_primers.items():
+                writer.writerow([species, 'Forward', primers['Forward']])
+                writer.writerow([species, 'Reverse', primers['Reverse']])
+
+    def calculate_consensus(self, primer_list):
+        """Calculates the consensus sequence from a list of primer sequences."""
+        if not primer_list:
+            return ""
+        consensus = ""
+        for position_bases in zip(*primer_list):
+            base_counts = Counter(position_bases)
+            most_common_base, freq = base_counts.most_common(1)[0]
+            consensus += self.get_iupac_code(base_counts) if len(base_counts) > 1 else most_common_base
+        return consensus
+
+    def get_iupac_code(self, base_counts):
+        """Gets the IUPAC code for degenerate positions based on base counts."""
+        iupac_dict = {
+            frozenset(['A']): 'A', frozenset(['C']): 'C', frozenset(['G']): 'G', frozenset(['T']): 'T',
+            frozenset(['A', 'G']): 'R', frozenset(['C', 'T']): 'Y', frozenset(['G', 'C']): 'S',
+            frozenset(['A', 'T']): 'W', frozenset(['G', 'T']): 'K', frozenset(['A', 'C']): 'M',
+            frozenset(['C', 'G', 'T']): 'B', frozenset(['A', 'G', 'T']): 'D', frozenset(['A', 'C', 'T']): 'H',
+            frozenset(['A', 'C', 'G']): 'V', frozenset(['A', 'T', 'C', 'G']): 'N'
+        }
+        return iupac_dict[frozenset(base_counts.keys())]
+
     # --- Internal Classes ---
     
     class Segment:
@@ -974,12 +1044,33 @@ class QuasiAlignmentStrategy(Strategy):
     def __repr__(self):
         return f"QuasiAlignment(cluster_id={self.cluster_id}, segments={self.segments}, medoid={self.medoid})"
 
-    def __init__(self):
-        pass
+    def __init__(self, species_dict, primer_parameters):
+        self.species_dict = species_dict
+        self.primer_parameters = primer_parameters
         
-    def design_primers(self, input_file, output_file, primer_design_algorithm: PrimerDesignAlgorithm, primer_design_params, primer_summarizing_algorithm: PrimerSummarizerAlgorithm, primer_summarizing_params, specificity_check_algorithm: SpecificityCheckAlgorithm, primer_specificity_params, specificity_check_database):
-        return primer_design_algorithm.design_primers(input_file, output_file, primer_design_params, primer_summarizing_algorithm, primer_summarizing_params, specificity_check_algorithm, specificity_check_database)
+    def design_primers(self, input_folder="output/panaroo/processed/selected", output_folder="output/primers"):
+        """
+        Runs the primer design process for all CSV files in the input folder.
 
+        :param input_folder: Directory containing input CSV files (default: 'output/panaroo/processed/selected').
+        :param output_folder: Directory where output CSV files will be saved (default: 'output/primers').
+        """
+        self.process_panaroo_output()
+        quasialignment_data = self.create_quasialignments(self.species_dict, segment_length=100, step=50,
+                                                          distance_func=self.manhattan_distance, threshold=30)
+        informative_positions = self.evaluate_informative_positions(quasialignment_data, self.species_dict,
+                                                                    threshold=0.9)
+
+        if not os.path.exists(output_folder):
+            os.makedirs(output_folder)
+
+        for filename in os.listdir(input_folder):
+            if filename.endswith(".csv"):
+                input_csv = os.path.join(input_folder, filename)
+                output_csv = os.path.join(output_folder, f"primers_{filename}")
+                print(f"Designing primers for {filename}")
+                self.design_degenerate_primers(input_csv, output_csv)
+        print("All primer designs completed.")
    
 class MarkerLociIdentificationStrategy(Strategy):
     def __init__(self):
@@ -3793,11 +3884,11 @@ class StrategyContext:
 
     def design_primers(self, primer_design_algorithm: PrimerDesignAlgorithm, primer_design_params, primer_summarizing_algorithm: PrimerSummarizerAlgorithm, primer_summarizing_params, specificity_check_algorithm: SpecificityCheckAlgorithm, primer_specificity_params):
         # if isinstance(self._strategy, MarkerLociIdentificationStrategy):
-            self._strategy.identify_markers()
+            # self._strategy.identify_markers()
 
             # todo:  loop through marker loci, design primers for each of them and output them to a file
         if isinstance(self._strategy, QuasiAlignmentStrategy):
-            
+            pass
         elif isinstance(self._strategy, TargetedAmpliconSequencingStrategy):
             # designed_primers = {}
 
