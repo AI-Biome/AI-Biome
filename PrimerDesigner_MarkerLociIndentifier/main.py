@@ -45,6 +45,31 @@ from collections import defaultdict
 import itertools
 from collections import Counter
 
+def create_species_dict(csv_file):
+    """
+    Reads a CSV file with target and non-target species and creates a dictionary where
+    keys are target species and values are lists of non-target species.
+
+    :param csv_file: Path to the CSV file with two columns: 'Target Species' and 'Non-Target Species'.
+    :return: A dictionary with target species as keys and lists of non-target species as values.
+    """
+    species_dict = {}
+
+    with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
+        reader = csv.reader(file)
+
+        # Skip header row if present
+        next(reader, None)
+
+        for row in reader:
+            target_species = row[0].strip()
+            non_target_species = [species.strip() for species in row[1].split(',')]
+
+            # Add to dictionary
+            species_dict[target_species] = non_target_species
+
+    return species_dict
+
 # Parsing the input FASTA file to a dictionary
 def parse_fasta_to_dict(fasta_file):
     sequence_dict = {}
@@ -507,6 +532,62 @@ class QuasiAlignmentStrategy(Strategy):
 
         distance = sum(abs(p1 - p2) for p1, p2 in zip(point1, point2))
         return distance
+
+    def run_prokka(self, input_dir=".", output_dir="output/prokka"):
+        """
+        Runs Prokka on all FASTA files in the specified input directory, saving results in a single output directory.
+
+        :param input_dir: Path to the directory containing FASTA files.
+        :param output_dir: Path to the directory where Prokka output will be saved.
+        """
+        # Ensure the output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Iterate over all files in the input directory
+        for i, filename in enumerate(os.listdir(input_dir)):
+            if filename.endswith(".fasta") or filename.endswith(".fa"):
+                entry_filepath = os.path.join(input_dir, filename)
+                species_name = os.path.splitext(filename)[0]  # Remove file extension for the prefix
+
+                # Construct Prokka command with the same output directory for all files
+                prokka_cmd = [
+                    'prokka',
+                    '--kingdom', 'Bacteria',
+                    '--outdir', output_dir,  # Use the same output directory
+                    '--prefix', f"{species_name}_{i}",  # Unique prefix for each file
+                    '--cpus', "0",
+                    entry_filepath
+                ]
+
+                # Run Prokka
+                print(f"Running Prokka for {filename} with command: {' '.join(prokka_cmd)}")
+                subprocess.run(prokka_cmd, check=True)
+                print(f"Prokka completed for {filename}")
+
+        print("All Prokka runs completed.")
+
+    def run_panaroo_no_alignment(self, input_dir="output/prokka", output_dir="output/panaroo"):
+        """
+        Run Panaroo with no alignments and strict cleaning mode.
+
+        Parameters:
+            input_dir (str): Directory containing input files (default: "output/prokka").
+            output_dir (str): Directory for Panaroo output (default: "output/panaroo").
+        """
+        # Construct the Panaroo command
+        command = [
+            "panaroo",
+            "-i", f"{input_dir}/*.gff",
+            "-o", output_dir,
+            "--clean-mode", "strict"
+        ]
+
+        # Run the command
+        try:
+            subprocess.run(command, check=True)
+            print(f"Panaroo completed successfully. Output is in '{output_dir}'.")
+        except subprocess.CalledProcessError as e:
+            print(f"An error occurred while running Panaroo: {e}")
     
     def process_panaroo_output(self, presence_absence_file="output/panaroo/gene_presence_absence.csv", gene_data_file="output/panaroo/gene_data.csv"):
         """
@@ -1048,13 +1129,17 @@ class QuasiAlignmentStrategy(Strategy):
         self.species_dict = species_dict
         self.primer_parameters = primer_parameters
         
-    def design_primers(self, input_folder="output/panaroo/processed/selected", output_folder="output/primers"):
+    def design_primers(self, input_folder=".", output_folder="output/primers"):
         """
         Runs the primer design process for all CSV files in the input folder.
 
         :param input_folder: Directory containing input CSV files (default: 'output/panaroo/processed/selected').
         :param output_folder: Directory where output CSV files will be saved (default: 'output/primers').
         """
+
+        self.run_prokka(input_folder)
+        self.run_panaroo_no_alignment()
+
         self.process_panaroo_output()
         quasialignment_data = self.create_quasialignments(self.species_dict, segment_length=100, step=50,
                                                           distance_func=self.manhattan_distance, threshold=30)
@@ -1066,7 +1151,7 @@ class QuasiAlignmentStrategy(Strategy):
 
         for filename in os.listdir(input_folder):
             if filename.endswith(".csv"):
-                input_csv = os.path.join(input_folder, filename)
+                input_csv = os.path.join("output/panaroo/processed/selected", filename)
                 output_csv = os.path.join(output_folder, f"primers_{filename}")
                 print(f"Designing primers for {filename}")
                 self.design_degenerate_primers(input_csv, output_csv)
@@ -3906,87 +3991,95 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
 
     # Add arguments related to marker loci identification to the parser
-    parser.add_argument("-a", "--alignment-tool", choices=['clustalw', 'muscle', 'mafft', 'prank'],
-                        help="Alignment tool to use. Possible values: clustalw, muscle, mafft, prank.")
+    #parser.add_argument("-a", "--alignment-tool", choices=['clustalw', 'muscle', 'mafft', 'prank'],
+    #                    help="Alignment tool to use. Possible values: clustalw, muscle, mafft, prank.")
 
-    parser.add_argument("-r", "--reference-db", required=True,
-                        help="Path to the reference database for minimap2.")
+    #parser.add_argument("-r", "--reference-db", required=True,
+    #                    help="Path to the reference database for minimap2.")
 
-    parser.add_argument("-I", "--identity-threshold", type=int, choices=range(0, 101),
-                        help="Identity threshold for minimap2 (0-100).")
+    #parser.add_argument("-I", "--identity-threshold", type=int, choices=range(0, 101),
+    #                    help="Identity threshold for minimap2 (0-100).")
 
-    parser.add_argument("-P", "--proportion-threshold", type=int, choices=range(0, 101),
-                        help="Threshold for proportion of correctly identified sequences (0-100).")
+    #parser.add_argument("-P", "--proportion-threshold", type=int, choices=range(0, 101),
+    #                    help="Threshold for proportion of correctly identified sequences (0-100).")
 
-    parser.add_argument("-l", "--min-length", type=int,
-                        help="Minimum length of conserved regions.")
+    #parser.add_argument("-l", "--min-length", type=int,
+    #                    help="Minimum length of conserved regions.")
 
-    parser.add_argument("-g", "--algorithm", choices=['consensus_sequence', 'shannon_entropy', 'quasi_alignment'],
-                        help="Algorithm for finding conserved regions. Possible values: consensus_sequence, shannon_entropy, quasi_alignment.")
+    #parser.add_argument("-g", "--algorithm", choices=['consensus_sequence', 'shannon_entropy', 'quasi_alignment'],
+    #                    help="Algorithm for finding conserved regions. Possible values: consensus_sequence, shannon_entropy, quasi_alignment.")
 
     # Add arguments related to primer design to the parser
-    parser.add_argument('-i', '--input_file', required=True, help='The input file to process.')
-    parser.add_argument('-o', '--output_file', required=True, default='output.txt', help='The output file to write to.')
-    parser.add_argument('-s', '--strategy', required=True, default='amplicon', choices=['amplicon', 'marker'], help='Choose a general strategy - primer design only for the WGS dataset (amplicon) or identification of marker loci in the WGS dataset followed by the primer design for the identified marker loci (marker).')
-    parser.add_argument('-a', '--primer_design_algorithm', required=True, default='primer3', choices=['primer3', 'custom'], help='Choose a primer design algorithm.')
-    parser.add_argument('-p', '--primer3_parameters', type=str, help='Path to the Primer3 parameters config file.')
-    parser.add_argument('-S', '--primer_summarizing_algorithm', required=True, choices=['frequency', 'consensus'], help='An algorithm for summarizing primers.')
-    parser.add_argument('-c', '--specificity_check_algorithm', required=True, choices=['blast'], help='An algorithm for primer specificity checking.')
-    parser.add_argument('-d', '--database_for_specificity_check', required=True, help = 'A database for checking the specificity of primers.')
-    parser.add_argument('-n', '--n_most_frequent', help='A number of the most frequently occurring primers to further work with.')
+    #parser.add_argument('-i', '--input_file', required=True, help='The input file to process.')
+    #parser.add_argument('-o', '--output_file', required=True, default='output.txt', help='The output file to write to.')
+    #parser.add_argument('-s', '--strategy', required=True, default='amplicon', choices=['amplicon', 'marker'], help='Choose a general strategy - primer design only for the WGS dataset (amplicon) or identification of marker loci in the WGS dataset followed by the primer design for the identified marker loci (marker).')
+    #parser.add_argument('-a', '--primer_design_algorithm', required=True, default='primer3', choices=['primer3', 'custom'], help='Choose a primer design algorithm.')
+    #parser.add_argument('-p', '--primer3_parameters', type=str, help='Path to the Primer3 parameters config file.')
+    #parser.add_argument('-S', '--primer_summarizing_algorithm', required=True, choices=['frequency', 'consensus'], help='An algorithm for summarizing primers.')
+    #parser.add_argument('-c', '--specificity_check_algorithm', required=True, choices=['blast'], help='An algorithm for primer specificity checking.')
+    #parser.add_argument('-d', '--database_for_specificity_check', required=True, help = 'A database for checking the specificity of primers.')
+    #parser.add_argument('-n', '--n_most_frequent', help='A number of the most frequently occurring primers to further work with.')
+
+    parser.add_argument('-i', '--input_directory', default=".", help='An input directory containing genome fasta files.')
+    parser.add_argument('-s', '--species_csv', required=True, help='A CSV file with target and non-target species.')
+    parser.add_argument('-p', '--primer3_params', required=True, help='The Primer3 config file.')
 
     args = parser.parse_args()
 
-    if args.strategy == 'amplicon':
-        strategy = TargetedAmpliconSequencingStrategy()
-    elif args.strategy == 'marker':
+    #if args.strategy == 'amplicon':
+    #    strategy = TargetedAmpliconSequencingStrategy()
+    #elif args.strategy == 'marker':
         #feature_extractor = MarkerLociIdentificationStrategy._Word2VecFeatureExtractor()  # todo: select feature extraction algorithm based on the CLI parameters
         #strategy = MarkerLociIdentificationStrategy(args.input_file, feature_extractor)
-        strategy = QuasiAlignmentStrategy(args.input_file, )
-    else:
-        raise ValueError("Unknown strategy specified.")
+    #    strategy = QuasiAlignmentStrategy(args.input_file, )
+    #else:
+    #    raise ValueError("Unknown strategy specified.")
 
-    context = StrategyContext(strategy, args.input_file, args.output_file, args.database_for_specificity_check)
+    species_dict = create_species_dict(args.species.csv)
+    strategy = QuasiAlignmentStrategy(species_dict, args.primer3_params)
+    strategy.design_primers(args.input_directory)
 
-    if args.strategy == 'marker':
-        strategy.identify_markers()
+    # context = StrategyContext(strategy, args.input_file, args.output_file, args.database_for_specificity_check)
+
+    #if args.strategy == 'marker':
+    #    strategy.identify_markers()
 
     # Initialize configparser
-    config = configparser.ConfigParser()
-
-    if args.primer_design_algorithm == 'primer3':
-        if args.primer3_parameters is None:
-            raise ValueError("The primer3 config file was not specified.")
-
-        print(f"Primer3 parameters will be loaded from: {args.primer3_parameters}")
-
-        # Read the configuration file
-        config.read(args.primer3_parameters)
-
-        primer_design_algorithm = Primer3Algorithm()
-
-        primer_design_params = {param.upper(): config.get('Primer3Parameters', param) for param in config.options('Primer3Parameters')}
-        primer_design_params_converted = {key: convert_param(value) for key, value in primer_design_params.items()}
-    elif args.primer_design_algorithm == 'custom':
-        primer_design_algorithm = CustomAlgorithm()
-    else:
-        raise ValueError("Unknown primer design algorithm specified.")
-
-    if args.primer_summarizing_algorithm == 'frequency':
-        primer_summarizing_algorithm = FrequencyBasedSummarizer()
-        primer_summarizing_params = {'n_most_frequent': args.n_most_frequent}
-    elif args.primer_summarizing_algorithm == 'consensus':
-        primer_summarizing_algorithm = ConsensusBasedSummarizer()
-    else:
-        raise ValueError("Unknown primer summarizing algorithm specified.")
-
-    if args.specificity_check_algorithm == 'blast':
-        specificity_check_algorithm = SpecificityCheckBLAST()
-        primer_specificity_params = {param.upper(): config.get('SpecificityParameters', param) for param in config.options('SpecificityParameters')}
-        primer_specificity_params_converted = {key: convert_param(value) for key, value in primer_specificity_params.items()}
-    else:
-        raise ValueError("Unknown primer summarizing algorithm specified.")
-
-    context.design_primers(primer_design_algorithm, primer_design_params_converted, primer_summarizing_algorithm, primer_summarizing_params, specificity_check_algorithm, primer_specificity_params_converted)
+    # config = configparser.ConfigParser()
+    #
+    # if args.primer_design_algorithm == 'primer3':
+    #     if args.primer3_parameters is None:
+    #         raise ValueError("The primer3 config file was not specified.")
+    #
+    #     print(f"Primer3 parameters will be loaded from: {args.primer3_parameters}")
+    #
+    #     # Read the configuration file
+    #     config.read(args.primer3_parameters)
+    #
+    #     primer_design_algorithm = Primer3Algorithm()
+    #
+    #     primer_design_params = {param.upper(): config.get('Primer3Parameters', param) for param in config.options('Primer3Parameters')}
+    #     primer_design_params_converted = {key: convert_param(value) for key, value in primer_design_params.items()}
+    # elif args.primer_design_algorithm == 'custom':
+    #     primer_design_algorithm = CustomAlgorithm()
+    # else:
+    #     raise ValueError("Unknown primer design algorithm specified.")
+    #
+    # if args.primer_summarizing_algorithm == 'frequency':
+    #     primer_summarizing_algorithm = FrequencyBasedSummarizer()
+    #     primer_summarizing_params = {'n_most_frequent': args.n_most_frequent}
+    # elif args.primer_summarizing_algorithm == 'consensus':
+    #     primer_summarizing_algorithm = ConsensusBasedSummarizer()
+    # else:
+    #     raise ValueError("Unknown primer summarizing algorithm specified.")
+    #
+    # if args.specificity_check_algorithm == 'blast':
+    #     specificity_check_algorithm = SpecificityCheckBLAST()
+    #     primer_specificity_params = {param.upper(): config.get('SpecificityParameters', param) for param in config.options('SpecificityParameters')}
+    #     primer_specificity_params_converted = {key: convert_param(value) for key, value in primer_specificity_params.items()}
+    # else:
+    #     raise ValueError("Unknown primer summarizing algorithm specified.")
+    #
+    # context.design_primers(primer_design_algorithm, primer_design_params_converted, primer_summarizing_algorithm, primer_summarizing_params, specificity_check_algorithm, primer_specificity_params_converted)
 
     # ray.shutdown()
