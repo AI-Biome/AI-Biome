@@ -855,21 +855,29 @@ class QuasiAlignmentStrategy(Strategy):
             quasi_alignments.append(new_quasi_alignment)
         
         return quasi_alignments
-        
-    def evaluate_informative_positions(self, quasialignment_data, species_dict, threshold):
+
+    def evaluate_informative_positions(self, quasialignment_data, species_dict, threshold, proportion_threshold,
+                                       output_dir="/output/panaroo/processed/selected"):
         """
         Evaluates each file (gene region) based on the proportion of informative positions.
         A position is considered informative if, for all target species, the proportion of segments belonging
         to a target species without any non-target species segments in the same quasi-alignment meets the threshold.
+        Files with informative proportions meeting or exceeding the proportion_threshold are copied to the output directory
+        and for these selected regions primers will be generated.
 
         :param quasialignment_data: A dictionary where keys are file names, values are dictionaries with positions as keys
                                     and lists of QuasiAlignment objects as values.
         :param species_dict: A dictionary where keys are target species and values are lists of non-target species.
         :param threshold: The minimum proportion of target species segments at a position without non-target species
                           required to consider the position informative.
+        :param proportion_threshold: The minimum proportion of informative positions required to select the file (region) for primer design.
+        :param output_dir: Directory to copy files that meet the informative proportion threshold (default: "/output/panaroo/processed/selected").
         :return: A dictionary where keys are file names and values are the proportions of informative positions.
         """
         file_informative_proportions = {}
+
+        # Ensure the output directory exists
+        os.makedirs(output_dir, exist_ok=True)
 
         # Loop through each file and its corresponding quasi-alignments by position
         for file_name, positions_dict in quasialignment_data.items():
@@ -895,7 +903,8 @@ class QuasiAlignmentStrategy(Strategy):
                         )
 
                         # Count segments from the target species in this quasi-alignment
-                        target_segments = [segment for segment in quasi_alignment.segments if segment.species == target_species]
+                        target_segments = [segment for segment in quasi_alignment.segments if
+                                           segment.species == target_species]
                         total_target_segments += len(target_segments)
 
                         # Only consider the quasi-alignment if no non-target species segments are present
@@ -915,8 +924,16 @@ class QuasiAlignmentStrategy(Strategy):
                 if is_informative_for_all_targets:
                     informative_count += 1
 
-            # Calculate and store the proportion of informative positions for this file
-            file_informative_proportions[file_name] = informative_count / total_positions if total_positions > 0 else 0
+            # Calculate the proportion of informative positions for this file
+            informative_proportion = informative_count / total_positions if total_positions > 0 else 0
+            file_informative_proportions[file_name] = informative_proportion
+
+            # Copy file if it meets the informative proportion threshold
+            if informative_proportion >= proportion_threshold:
+                source_file_path = file_name  # Assuming file_name contains the full path of the file
+                destination_file_path = os.path.join(output_dir, os.path.basename(file_name))
+                shutil.copy(source_file_path, destination_file_path)
+                print(f"Copied {file_name} to {output_dir} (informative proportion: {informative_proportion:.2f})")
 
         return file_informative_proportions
 
