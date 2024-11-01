@@ -533,6 +533,34 @@ class QuasiAlignmentStrategy(Strategy):
         distance = sum(abs(p1 - p2) for p1, p2 in zip(point1, point2))
         return distance
 
+    def cosine_similarity(vector_a, vector_b):
+        """
+        Calculates the cosine similarity between two vectors.
+
+        :param vector_a: A list or tuple representing the first vector.
+        :param vector_b: A list or tuple representing the second vector.
+        :return: The cosine similarity between vector_a and vector_b.
+        """
+        # Ensure inputs are lists or tuples
+        if not isinstance(vector_a, (list, tuple)) or not isinstance(vector_b, (list, tuple)):
+            raise TypeError("Input vectors must be lists or tuples.")
+        
+        # Convert to NumPy arrays
+        vector_a = np.array(vector_a)
+        vector_b = np.array(vector_b)
+        
+        # Calculate dot product and magnitudes
+        dot_product = np.dot(vector_a, vector_b)
+        magnitude_a = np.linalg.norm(vector_a)
+        magnitude_b = np.linalg.norm(vector_b)
+        
+        # Avoid division by zero
+        if magnitude_a == 0 or magnitude_b == 0:
+            return 0  # Return 0 for cosine similarity if either vector is zero
+        
+        # Compute cosine similarity
+        return dot_product / (magnitude_a * magnitude_b)
+
     def run_prokka(self, input_dir=".", output_dir="output/prokka"):
         """
         Runs Prokka on all FASTA files in the specified input directory, saving results in a single output directory.
