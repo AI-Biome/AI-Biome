@@ -533,7 +533,7 @@ class QuasiAlignmentStrategy(Strategy):
         distance = sum(abs(p1 - p2) for p1, p2 in zip(point1, point2))
         return distance
 
-    def cosine_similarity(vector_a, vector_b):
+    def cosine_similarity(self, vector_a, vector_b):
         """
         Calculates the cosine similarity between two vectors.
 
@@ -560,6 +560,29 @@ class QuasiAlignmentStrategy(Strategy):
         
         # Compute cosine similarity
         return dot_product / (magnitude_a * magnitude_b)
+        
+    def jaccard_similarity_with_frequencies(self, vector_a, vector_b):
+        """
+        Calculates the Jaccard similarity between two lists or tuples containing frequencies of individual items (e.g., p-mers).
+
+        :param list_a: A list or tuple representing the first vector.
+        :param list_b: A list or tuple representing the second vector.
+        :return: The Jaccard similarity between the two collections, accounting for frequencies.
+        """
+        # Convert lists to Counters to handle frequencies
+        counter_a = Counter(vector_a)
+        counter_b = Counter(vector_b)
+        
+        # Calculate intersection and union based on minimum and maximum frequencies
+        intersection = sum((min(counter_a[item], counter_b[item]) for item in counter_a if item in counter_b))
+        union = sum((max(counter_a[item], counter_b[item]) for item in set(counter_a) | set(counter_b)))
+        
+        # Avoid division by zero in case both counters are empty
+        if union == 0:
+            return 0
+        
+        # Compute Jaccard similarity with frequencies
+        return intersection / union
 
     def run_prokka(self, input_dir=".", output_dir="output/prokka"):
         """
