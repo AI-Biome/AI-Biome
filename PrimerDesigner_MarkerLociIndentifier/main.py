@@ -584,7 +584,7 @@ class QuasiAlignmentStrategy(Strategy):
         # Compute Jaccard similarity with frequencies
         return intersection / union
         
-    def calculate_weighted_minhash_similarity(frequency_vector_a, frequency_vector_b, num_perm=128):
+    def calculate_weighted_minhash_similarity(self, frequency_vector_a, frequency_vector_b, num_perm=128):
         """
         Calculates the Weighted MinHash Jaccard similarity between two frequency vectors.
 
@@ -1078,7 +1078,27 @@ class QuasiAlignmentStrategy(Strategy):
             frozenset(['A', 'C', 'G']): 'V', frozenset(['A', 'T', 'C', 'G']): 'N'
         }
         return iupac_dict[frozenset(base_counts.keys())]
-
+    
+    def add_missing_keys_with_zero(self, dict1, dict2):
+        """
+        Adds keys that are present in dict1 but not in dict2 (and vice versa) to each dictionary with values set to zero.
+        
+        :param dict1: The first dictionary.
+        :param dict2: The second dictionary.
+        :return: Two dictionaries with added keys and values set to zero where keys were missing.
+        """
+        # Find keys unique to each dictionary
+        keys_in_dict1_not_in_dict2 = dict1.keys() - dict2.keys()
+        keys_in_dict2_not_in_dict1 = dict2.keys() - dict1.keys()
+        
+        # Add missing keys to each dictionary with values set to zero
+        for key in keys_in_dict1_not_in_dict2:
+            dict2[key] = 0
+        for key in keys_in_dict2_not_in_dict1:
+            dict1[key] = 0
+        
+        return dict1, dict2
+        
     # --- Internal Classes ---
     
     class Segment:
@@ -1109,7 +1129,7 @@ class QuasiAlignmentStrategy(Strategy):
             end = self.start + self.length
             return sequence[self.start:end]
 
-        def get_pmer_composition(segment, p):
+        def get_pmer_composition(self, segment, p):
             """
             Takes a Segment object and computes the p-mer composition of the segment.
             The output is a dictionary where keys are all possible p-mers (substrings of length p) composed of A, C, T, G, 
