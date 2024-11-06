@@ -1132,30 +1132,25 @@ class QuasiAlignmentStrategy(Strategy):
         def get_pmer_composition(self, segment, p):
             """
             Takes a Segment object and computes the p-mer composition of the segment.
-            The output is a dictionary where keys are all possible p-mers (substrings of length p) composed of A, C, T, G, 
-            and values are their counts in the segment's sequence. P-mers are stored in uppercase.
+            The output is a dictionary where keys are only the p-mers present in the segment's sequence, and values are their counts.
+            P-mers are stored in uppercase.
 
             :param segment: A Segment object containing the start and length information.
             :param p: The length of the p-mer (substring).
-            :return: A dictionary with all possible p-mers as keys and their counts as values.
+            :return: A dictionary with present p-mers as keys and their counts as values.
             """
             sequence = segment.segment.upper()  # Convert the entire sequence to uppercase
             pmer_dict = {}
-
-            # Generate all possible p-mer combinations using A, C, T, G
-            bases = ['A', 'C', 'T', 'G']
-            possible_pm = [''.join(pmer) for pmer in itertools.product(bases, repeat=p)]
-
-            # Initialize the dictionary with all possible p-mers set to 0
-            pmer_dict = {pmer: 0 for pmer in possible_pm}
 
             # Loop through the sequence and extract p-mers
             for i in range(len(sequence) - p + 1):  # Ensure we don't go beyond the sequence
                 pmer = sequence[i:i + p]
                 
-                # Update the count of the p-mer in the dictionary
+                # Add or update the count of the p-mer in the dictionary
                 if pmer in pmer_dict:
                     pmer_dict[pmer] += 1
+                else:
+                    pmer_dict[pmer] = 1
             
             return pmer_dict
         
