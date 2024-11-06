@@ -583,6 +583,28 @@ class QuasiAlignmentStrategy(Strategy):
         
         # Compute Jaccard similarity with frequencies
         return intersection / union
+        
+    def calculate_weighted_minhash_similarity(frequency_vector_a, frequency_vector_b, num_perm=128):
+        """
+        Calculates the Weighted MinHash Jaccard similarity between two frequency vectors.
+
+        :param frequency_vector_a: A list or tuple representing the frequency of p-mers for the first vector.
+        :param frequency_vector_b: A list or tuple representing the frequency of p-mers for the second vector.
+        :param num_perm: The number of permutations (hash functions) for the MinHash.
+        :return: The Weighted MinHash Jaccard similarity between the two vectors.
+        """
+        if not isinstance(frequency_vector_a, (list, tuple)) or not isinstance(frequency_vector_b, (list, tuple)):
+            raise TypeError("Input vectors must be lists or tuples.")
+        
+        if len(frequency_vector_a) != len(frequency_vector_b):
+            raise ValueError("The two frequency vectors must be of the same length.")
+        
+        wmg = WeightedMinHashGenerator(len(frequency_vector_a), sample_size=num_perm)
+        
+        wm_a = wmg.minhash(frequency_vector_a)
+        wm_b = wmg.minhash(frequency_vector_b)
+        
+        return wm_a.jaccard(wm_b)
 
     def run_prokka(self, input_dir=".", output_dir="output/prokka"):
         """
