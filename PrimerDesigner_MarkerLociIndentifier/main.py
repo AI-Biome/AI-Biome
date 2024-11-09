@@ -1165,7 +1165,13 @@ class QuasiAlignmentStrategy(Strategy):
             if not callable(distance_func):
                 raise ValueError("distance_func must be a callable function")
             
-            return distance_func(self.pmer_profile, other_segment.pmer_profile)
+            aligned_profile_self, aligned_profile_other = add_missing_keys_with_zero(self.pmer_profile, other_segment.pmer_profile)
+            
+            profile_values_self = tuple(aligned_profile_self.values())
+            profile_values_other = tuple(aligned_profile_other.values())
+            
+            # Calculate and return the distance using the specified distance function
+            return distance_func(profile_values_self, profile_values_other)
 
         def __repr__(self):
             return f"Segment(seq_id={self.seq_id}, species={self.species}, start={self.start}, end={self.end})"
