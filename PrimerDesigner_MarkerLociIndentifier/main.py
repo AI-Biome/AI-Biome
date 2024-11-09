@@ -517,8 +517,9 @@ class TargetedAmpliconSequencingStrategy(Strategy):
 
 
 class QuasiAlignmentStrategy(Strategy):
-    # --- Internal Functions ---
-    
+    # --- Internal Methods ---
+        
+    @staticmethod
     def manhattan_distance(self, point1, point2):
         """
         Calculate the Manhattan distance between two points.
@@ -533,6 +534,7 @@ class QuasiAlignmentStrategy(Strategy):
         distance = sum(abs(p1 - p2) for p1, p2 in zip(point1, point2))
         return distance
 
+    @staticmethod
     def cosine_similarity(self, vector_a, vector_b):
         """
         Calculates the cosine similarity between two vectors.
@@ -560,7 +562,8 @@ class QuasiAlignmentStrategy(Strategy):
         
         # Compute cosine similarity
         return dot_product / (magnitude_a * magnitude_b)
-        
+    
+    @staticmethod 
     def jaccard_similarity_with_frequencies(self, vector_a, vector_b):
         """
         Calculates the Jaccard similarity between two lists or tuples containing frequencies of individual items (e.g., p-mers).
@@ -583,7 +586,8 @@ class QuasiAlignmentStrategy(Strategy):
         
         # Compute Jaccard similarity with frequencies
         return intersection / union
-        
+    
+    @staticmethod
     def calculate_weighted_minhash_similarity(self, frequency_vector_a, frequency_vector_b, num_perm=128):
         """
         Calculates the Weighted MinHash Jaccard similarity between two frequency vectors.
@@ -605,7 +609,8 @@ class QuasiAlignmentStrategy(Strategy):
         wm_b = wmg.minhash(frequency_vector_b)
         
         return wm_a.jaccard(wm_b)
-
+    
+    @staticmethod
     def run_prokka(self, input_dir=".", output_dir="output/prokka"):
         """
         Runs Prokka on all FASTA files in the specified input directory, saving results in a single output directory.
@@ -639,6 +644,7 @@ class QuasiAlignmentStrategy(Strategy):
 
         print("All Prokka runs completed.")
 
+    @staticmethod
     def run_panaroo_no_alignment(self, input_dir="output/prokka", output_dir="output/panaroo"):
         """
         Run Panaroo with no alignments and strict cleaning mode.
@@ -662,6 +668,7 @@ class QuasiAlignmentStrategy(Strategy):
         except subprocess.CalledProcessError as e:
             print(f"An error occurred while running Panaroo: {e}")
     
+    @staticmethod
     def process_panaroo_output(self, presence_absence_file="output/panaroo/gene_presence_absence.csv", gene_data_file="output/panaroo/gene_data.csv"):
         """
         Process Panaroo output files and generate individual CSV files for each gene.
@@ -745,6 +752,7 @@ class QuasiAlignmentStrategy(Strategy):
                             else:
                                 print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
     
+    @staticmethod
     def create_quasialignments(self, species_dict, segment_length, step, distance_func, threshold, input_dir='output/panaroo/processed'):
         """
         Processes all CSV files in the specified directory by removing the '_\d+' suffix from species names in the third column.
@@ -815,6 +823,7 @@ class QuasiAlignmentStrategy(Strategy):
         
         return result_dict
     
+    @staticmethod
     def extract_segments(self, file_path, segment_length, step):
         """
         Processes a CSV file to cut segments of a specified length from each sequence in the file.
@@ -854,7 +863,8 @@ class QuasiAlignmentStrategy(Strategy):
                         all_segments[i] = segment_obj
     
         return all_segments
-        
+    
+    @staticmethod
     def extract_segments_from_list(self, entries, segment_length, step):
         """
         Processes a list of sequences and extracts segments of a specified length.
@@ -892,7 +902,8 @@ class QuasiAlignmentStrategy(Strategy):
                         all_segments[i] = [segment_obj]
         
         return all_segments
-        
+    
+    @staticmethod
     def assign_segment_to_closest_quasialignment(self, quasi_alignments, segment, distance_func, threshold):
         """
         Adds a Segment object to the closest quasi-alignment based on its distance to each quasi-alignment's medoid.
@@ -911,7 +922,7 @@ class QuasiAlignmentStrategy(Strategy):
         for quasi_alignment in quasi_alignments:
             if quasi_alignment.medoid is not None:
                 # Calculate the distance between the segment and the medoid of the current QuasiAlignment
-                distance = distance_func(segment.pmer_profile, quasi_alignment.medoid.pmer_profile)
+                distance = segment.get_distance(quasi_alignment.medoid, self.manhattan_distance)
                 
                 # Check if this QuasiAlignment is a better fit (within threshold and lower distance)
                 if distance < threshold and distance < min_distance:
@@ -929,6 +940,7 @@ class QuasiAlignmentStrategy(Strategy):
         
         return quasi_alignments
 
+    @staticmethod
     def evaluate_informative_positions(self, quasialignment_data, species_dict, threshold, proportion_threshold,
                                        output_dir="/output/panaroo/processed/selected"):
         """
@@ -1010,6 +1022,7 @@ class QuasiAlignmentStrategy(Strategy):
 
         return file_informative_proportions
 
+    @staticmethod
     def design_degenerate_primers(self, input_csv, output_csv):
         """
         Designs primers for each sequence in a CSV file using Primer3, creates consensus primer sequences
@@ -1057,6 +1070,7 @@ class QuasiAlignmentStrategy(Strategy):
                 writer.writerow([species, 'Forward', primers['Forward']])
                 writer.writerow([species, 'Reverse', primers['Reverse']])
 
+    @staticmethod
     def calculate_consensus(self, primer_list):
         """Calculates the consensus sequence from a list of primer sequences."""
         if not primer_list:
@@ -1068,6 +1082,7 @@ class QuasiAlignmentStrategy(Strategy):
             consensus += self.get_iupac_code(base_counts) if len(base_counts) > 1 else most_common_base
         return consensus
 
+    @staticmethod
     def get_iupac_code(self, base_counts):
         """Gets the IUPAC code for degenerate positions based on base counts."""
         iupac_dict = {
@@ -1079,6 +1094,7 @@ class QuasiAlignmentStrategy(Strategy):
         }
         return iupac_dict[frozenset(base_counts.keys())]
     
+    @staticmethod
     def add_missing_keys_with_zero(self, dict1, dict2):
         """
         Adds keys that are present in dict1 but not in dict2 (and vice versa) to each dictionary with values set to zero.
@@ -1165,7 +1181,7 @@ class QuasiAlignmentStrategy(Strategy):
             if not callable(distance_func):
                 raise ValueError("distance_func must be a callable function")
             
-            aligned_profile_self, aligned_profile_other = add_missing_keys_with_zero(self.pmer_profile, other_segment.pmer_profile)
+            aligned_profile_self, aligned_profile_other = QuasiAlignmentStrategy.add_missing_keys_with_zero(self.pmer_profile, other_segment.pmer_profile)
             
             profile_values_self = tuple(aligned_profile_self.values())
             profile_values_other = tuple(aligned_profile_other.values())
@@ -1208,7 +1224,7 @@ class QuasiAlignmentStrategy(Strategy):
                 new_medoid = None
 
                 for segment in self.segments:
-                    distances = [segment.get_distance(other, manhattan_distance) for other in self.segments if other != segment]
+                    distances = [segment.get_distance(other, QuasiAlignmentStrategy.manhattan_distance) for other in self.segments if other != segment]
                     avg_distance = np.mean(distances)
                     
                     # Update the medoid if a smaller average distance is found
