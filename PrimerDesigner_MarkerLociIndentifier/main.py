@@ -1115,48 +1115,64 @@ class QuasiAlignmentStrategy(Strategy):
         
         return dict1, dict2
         
-    def find_multiple_consensus_binding_regions(all_primers, window_size=10, threshold_proportion=0.6):
+    def find_consensus_binding_regions(all_primers, window_size=10, threshold_proportion=0.6):
         """
-        Identifies multiple consensus binding regions where a threshold proportion of primers bind across sequences.
+        Identifies consensus binding regions for forward and reverse primers separately
+        where a threshold proportion of primers bind across sequences.
 
         :param all_primers: Dictionary with sequence IDs as keys and lists of primer dictionaries as values.
         :param window_size: The range of positions to consider in the histogram for grouping similar binding sites.
         :param threshold_proportion: The minimum proportion of sequences that need to bind near a position for consensus.
-        :return: A list of position ranges representing multiple consensus binding regions.
+        :return: Two lists of position ranges representing consensus binding regions for forward and reverse primers.
         """
-        position_histogram = defaultdict(int)
+        forward_position_histogram = defaultdict(int)
+        reverse_position_histogram = defaultdict(int)
         total_sequences = len(all_primers)
 
-        # Build a histogram of binding positions across all sequences
         for seq_id, primers in all_primers.items():
             for primer in primers:
                 left_pos = primer['left_pos']
                 right_pos = primer['right_pos']
                 
-                # Increment the histogram counts within a window around each binding position
                 for pos in range(left_pos - window_size // 2, left_pos + window_size // 2 + 1):
-                    position_histogram[pos] += 1
+                    forward_position_histogram[pos] += 1
+                
                 for pos in range(right_pos - window_size // 2, right_pos + window_size // 2 + 1):
-                    position_histogram[pos] += 1
+                    reverse_position_histogram[pos] += 1
 
-        # Identify peaks in the histogram that meet the threshold proportion
-        consensus_regions = []
+        forward_consensus_regions = []
         current_region = []
-        for pos in sorted(position_histogram):
-            count = position_histogram[pos]
-            if count / (2 * total_sequences) >= threshold_proportion:
+        for pos in sorted(forward_position_histogram):
+            count = forward_position_histogram[pos]
+            if count / total_sequences >= threshold_proportion:
                 if not current_region:
                     current_region = [pos, pos]
                 else:
-                    current_region[1] = pos  # Extend the region to include this position
+                    current_region[1] = pos
             else:
                 if current_region:
-                    consensus_regions.append(tuple(current_region))
+                    forward_consensus_regions.append(tuple(current_region))
                     current_region = []
         if current_region:
-            consensus_regions.append(tuple(current_region))
+            forward_consensus_regions.append(tuple(current_region))
 
-        return consensus_regions
+        reverse_consensus_regions = []
+        current_region = []
+        for pos in sorted(reverse_position_histogram):
+            count = reverse_position_histogram[pos]
+            if count / total_sequences >= threshold_proportion:
+                if not current_region:
+                    current_region = [pos, pos]
+                else:
+                    current_region[1] = pos
+            else:
+                if current_region:
+                    reverse_consensus_regions.append(tuple(current_region))
+                    current_region = []
+        if current_region:
+            reverse_consensus_regions.append(tuple(current_region))
+
+        return forward_consensus_regions, reverse_consensus_regions
         
     # --- Internal Classes ---
     
