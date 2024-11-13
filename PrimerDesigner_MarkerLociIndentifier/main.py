@@ -520,7 +520,7 @@ class QuasiAlignmentStrategy(Strategy):
     # --- Internal Methods ---
         
     @staticmethod
-    def manhattan_distance(self, point1, point2):
+    def manhattan_distance(point1, point2):
         """
         Calculate the Manhattan distance between two points.
 
@@ -535,7 +535,7 @@ class QuasiAlignmentStrategy(Strategy):
         return distance
 
     @staticmethod
-    def cosine_similarity(self, vector_a, vector_b):
+    def cosine_similarity(vector_a, vector_b):
         """
         Calculates the cosine similarity between two vectors.
 
@@ -564,7 +564,7 @@ class QuasiAlignmentStrategy(Strategy):
         return dot_product / (magnitude_a * magnitude_b)
     
     @staticmethod 
-    def jaccard_similarity_with_frequencies(self, vector_a, vector_b):
+    def jaccard_similarity_with_frequencies(vector_a, vector_b):
         """
         Calculates the Jaccard similarity between two lists or tuples containing frequencies of individual items (e.g., p-mers).
 
@@ -588,7 +588,7 @@ class QuasiAlignmentStrategy(Strategy):
         return intersection / union
     
     @staticmethod
-    def calculate_weighted_minhash_similarity(self, frequency_vector_a, frequency_vector_b, num_perm=128):
+    def calculate_weighted_minhash_similarity(frequency_vector_a, frequency_vector_b, num_perm=128):
         """
         Calculates the Weighted MinHash Jaccard similarity between two frequency vectors.
 
@@ -610,7 +610,6 @@ class QuasiAlignmentStrategy(Strategy):
         
         return wm_a.jaccard(wm_b)
     
-    @staticmethod
     def run_prokka(self, input_dir=".", output_dir="output/prokka"):
         """
         Runs Prokka on all FASTA files in the specified input directory, saving results in a single output directory.
@@ -644,7 +643,6 @@ class QuasiAlignmentStrategy(Strategy):
 
         print("All Prokka runs completed.")
 
-    @staticmethod
     def run_panaroo_no_alignment(self, input_dir="output/prokka", output_dir="output/panaroo"):
         """
         Run Panaroo with no alignments and strict cleaning mode.
@@ -668,7 +666,6 @@ class QuasiAlignmentStrategy(Strategy):
         except subprocess.CalledProcessError as e:
             print(f"An error occurred while running Panaroo: {e}")
     
-    @staticmethod
     def process_panaroo_output(self, presence_absence_file="output/panaroo/gene_presence_absence.csv", gene_data_file="output/panaroo/gene_data.csv"):
         """
         Process Panaroo output files and generate individual CSV files for each gene.
@@ -753,7 +750,7 @@ class QuasiAlignmentStrategy(Strategy):
                                 print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
     
     @staticmethod
-    def create_quasialignments(self, species_dict, segment_length, step, distance_func, threshold, input_dir='output/panaroo/processed'):
+    def create_quasialignments(species_dict, segment_length, step, distance_func, threshold, input_dir='output/panaroo/processed'):
         """
         Processes all CSV files in the specified directory by removing the '_\d+' suffix from species names in the third column.
         For each target species in the dictionary, selects rows where the species name in the third column matches
@@ -824,7 +821,7 @@ class QuasiAlignmentStrategy(Strategy):
         return result_dict
     
     @staticmethod
-    def extract_segments(self, file_path, segment_length, step):
+    def extract_segments(file_path, segment_length, step):
         """
         Processes a CSV file to cut segments of a specified length from each sequence in the file.
         It cuts the first segment starting at the beginning, then moves to the right by a specified 
@@ -865,7 +862,7 @@ class QuasiAlignmentStrategy(Strategy):
         return all_segments
     
     @staticmethod
-    def extract_segments_from_list(self, entries, segment_length, step):
+    def extract_segments_from_list(entries, segment_length, step):
         """
         Processes a list of sequences and extracts segments of a specified length.
         It cuts the first segment starting at the beginning, then moves to the right by a specified 
@@ -904,7 +901,7 @@ class QuasiAlignmentStrategy(Strategy):
         return all_segments
     
     @staticmethod
-    def assign_segment_to_closest_quasialignment(self, quasi_alignments, segment, distance_func, threshold):
+    def assign_segment_to_closest_quasialignment(quasi_alignments, segment, distance_func, threshold):
         """
         Adds a Segment object to the closest quasi-alignment based on its distance to each quasi-alignment's medoid.
         If no quasi-alignment is found within the threshold distance, creates a new QuasiAlignment object and adds the Segment object to it.
@@ -940,7 +937,6 @@ class QuasiAlignmentStrategy(Strategy):
         
         return quasi_alignments
 
-    @staticmethod
     def evaluate_informative_positions(self, quasialignment_data, species_dict, threshold, proportion_threshold,
                                        output_dir="/output/panaroo/processed/selected"):
         """
@@ -1023,55 +1019,7 @@ class QuasiAlignmentStrategy(Strategy):
         return file_informative_proportions
 
     @staticmethod
-    def design_degenerate_primers(self, input_csv, output_csv):
-        """
-        Designs primers for each sequence in a CSV file using Primer3, creates consensus primer sequences
-        for each target species, and outputs the consensus sequences to a CSV file.
-
-        :param input_csv: Path to the input CSV file containing columns 'Gene Name', 'Species Name', 'DNA Sequence'.
-        :param output_csv: Path to the output CSV file to save consensus primer sequences.
-        """
-        df = pd.read_csv(input_csv)
-        species_primers = {}
-
-        for target_species in self.species_dict.keys():
-            forward_primers = []
-            reverse_primers = []
-
-            # Filter the DataFrame to get sequences for the target species
-            target_df = df[df['Species Name'] == target_species]
-
-            for _, row in target_df.iterrows():
-                sequence = row['DNA Sequence']
-                # Set sequence in primer parameters and design primers
-                self.primer_parameters['SEQUENCE_TEMPLATE'] = sequence
-                primers = primer3.bindings.designPrimers({}, self.primer_parameters)
-
-                # Store forward and reverse primers if available
-                if 'PRIMER_LEFT_0_SEQUENCE' in primers and 'PRIMER_RIGHT_0_SEQUENCE' in primers:
-                    forward_primers.append(primers['PRIMER_LEFT_0_SEQUENCE'])
-                    reverse_primers.append(primers['PRIMER_RIGHT_0_SEQUENCE'])
-
-            # Calculate consensus sequences for forward and reverse primers for this species
-            forward_consensus = self.calculate_consensus(forward_primers)
-            reverse_consensus = self.calculate_consensus(reverse_primers)
-
-            # Store the consensus sequences for the species
-            species_primers[target_species] = {
-                'Forward': forward_consensus,
-                'Reverse': reverse_consensus
-            }
-
-        # Write consensus primers to CSV
-        with open(output_csv, mode='w', newline='') as csv_file:
-            writer = csv.writer(csv_file)
-            writer.writerow(['Species', 'Primer Type', 'Consensus Sequence'])
-            for species, primers in species_primers.items():
-                writer.writerow([species, 'Forward', primers['Forward']])
-                writer.writerow([species, 'Reverse', primers['Reverse']])
-
-    @staticmethod
-    def calculate_consensus(self, primer_list):
+    def calculate_consensus(primer_list):
         """Calculates the consensus sequence from a list of primer sequences."""
         if not primer_list:
             return ""
@@ -1083,7 +1031,7 @@ class QuasiAlignmentStrategy(Strategy):
         return consensus
 
     @staticmethod
-    def get_iupac_code(self, base_counts):
+    def get_iupac_code(base_counts):
         """Gets the IUPAC code for degenerate positions based on base counts."""
         iupac_dict = {
             frozenset(['A']): 'A', frozenset(['C']): 'C', frozenset(['G']): 'G', frozenset(['T']): 'T',
@@ -1095,7 +1043,7 @@ class QuasiAlignmentStrategy(Strategy):
         return iupac_dict[frozenset(base_counts.keys())]
     
     @staticmethod
-    def add_missing_keys_with_zero(self, dict1, dict2):
+    def add_missing_keys_with_zero(dict1, dict2):
         """
         Adds keys that are present in dict1 but not in dict2 (and vice versa) to each dictionary with values set to zero.
         
@@ -1115,6 +1063,7 @@ class QuasiAlignmentStrategy(Strategy):
         
         return dict1, dict2
         
+    @staticmethod
     def find_consensus_binding_regions(all_primers, window_size=10, threshold_proportion=0.6):
         """
         Identifies consensus binding regions for forward and reverse primers separately
@@ -1173,6 +1122,75 @@ class QuasiAlignmentStrategy(Strategy):
             reverse_consensus_regions.append(tuple(current_region))
 
         return forward_consensus_regions, reverse_consensus_regions
+        
+    @staticmethod    
+    def select_consensus_primers(all_primers, forward_regions, reverse_regions):
+        """
+        Selects forward and reverse primers closest to each consensus binding region for each sequence.
+
+        :param all_primers: Dictionary with sequence IDs as keys and lists of primer dictionaries as values.
+        :param forward_regions: List of tuples with start and end positions of consensus binding regions for forward primers.
+        :param reverse_regions: List of tuples with start and end positions of consensus binding regions for reverse primers.
+        :return: A dictionary with sequence IDs and selected primers for each region.
+        """
+        consensus_primers = {seq_id: [] for seq_id in all_primers}
+
+        for seq_id, primers in all_primers.items():
+            for region_start, region_end in forward_regions:
+                forward_candidates = [p for p in primers if region_start <= p['left_pos'] <= region_end]
+                
+                if forward_candidates:
+                    selected_forward = min(forward_candidates, key=lambda p: abs(p['left_pos'] - (region_start + region_end) // 2))
+                else:
+                    selected_forward = None
+
+                for rev_region_start, rev_region_end in reverse_regions:
+                    reverse_candidates = [p for p in primers if rev_region_start <= p['right_pos'] <= rev_region_end]
+                    
+                    if reverse_candidates:
+                        selected_reverse = min(reverse_candidates, key=lambda p: abs(p['right_pos'] - (rev_region_start + rev_region_end) // 2))
+                    else:
+                        selected_reverse = None
+
+                    consensus_primers[seq_id].append({
+                        'forward_region': (region_start, region_end),
+                        'reverse_region': (rev_region_start, rev_region_end),
+                        'forward': selected_forward['left_seq'] if selected_forward else None,
+                        'reverse': selected_reverse['right_seq'] if selected_reverse else None
+                    })
+        
+        return consensus_primers
+        
+    def generate_degenerate_primers(self, consensus_primers):
+        """
+        Generates degenerate primers for each consensus binding region.
+
+        :param consensus_primers: The output dictionary from select_consensus_primers_for_separate_regions.
+        :return: A dictionary with degenerate forward and reverse primers for each region.
+        """
+        degenerate_primers = {}
+
+        for seq_id, regions in consensus_primers.items():
+            degenerate_primers[seq_id] = []
+
+            for region in regions:
+                # Collect forward and reverse primers across all sequences for the current region
+                forward_primer_list = [region['forward']] if region['forward'] else []
+                reverse_primer_list = [region['reverse']] if region['reverse'] else []
+
+                # Calculate degenerate consensus sequences for forward and reverse primers
+                forward_consensus = self.calculate_consensus(forward_primer_list) if forward_primer_list else None
+                reverse_consensus = self.calculate_consensus(reverse_primer_list) if reverse_primer_list else None
+
+                # Store the consensus sequences in the output dictionary
+                degenerate_primers[seq_id].append({
+                    'forward_region': region['forward_region'],
+                    'reverse_region': region['reverse_region'],
+                    'forward_degenerate': forward_consensus,
+                    'reverse_degenerate': reverse_consensus
+                })
+
+        return degenerate_primers
         
     # --- Internal Classes ---
     
@@ -1266,7 +1284,7 @@ class QuasiAlignmentStrategy(Strategy):
             self.segments = []
             self.medoid = None
 
-        def add_segment(self, seq_id: str, species: str, start: int, end: int):
+        def add_segment(self, seq_id: str, new_segment: "QuasiAlignmentStrategy.Segment"):
             """
             Adds a new Segment to the quasi-alignment and recalculates the medoid.
             The medoid is the segment with the smallest average distance to all other segments.
