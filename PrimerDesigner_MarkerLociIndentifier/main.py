@@ -744,7 +744,7 @@ class QuasiAlignmentStrategy(Strategy):
                                 dna_sequence = gene_data[annotation_id]['dna_sequence']
                                 gene_name = gene_data[annotation_id]['gene_name']
                                 
-                                # Step 4: Write to the individual gene CSV in the order: gene_name, species_name, dna_sequence
+                                # Step 4: Write to the individual gene CSV in the order: annotation_id, gene_name, species_name, dna_sequence
                                 output_writer.writerow([annotation_id, gene_name, species_name, dna_sequence])
                             else:
                                 print(f"Warning: Annotation ID {annotation_id} not found in gene_data.csv")
@@ -1011,14 +1011,13 @@ class QuasiAlignmentStrategy(Strategy):
 
             # Copy file if it meets the informative proportion threshold
             if informative_proportion >= proportion_threshold:
-                source_file_path = file_name  # Assuming file_name contains the full path of the file
+                source_file_path = file_name
                 destination_file_path = os.path.join(output_dir, os.path.basename(file_name))
                 shutil.copy(source_file_path, destination_file_path)
                 print(f"Copied {file_name} to {output_dir} (informative proportion: {informative_proportion:.2f})")
 
         return file_informative_proportions
 
-    @staticmethod
     def calculate_consensus(primer_list):
         """Calculates the consensus sequence from a list of primer sequences."""
         if not primer_list:
@@ -1030,7 +1029,6 @@ class QuasiAlignmentStrategy(Strategy):
             consensus += self.get_iupac_code(base_counts) if len(base_counts) > 1 else most_common_base
         return consensus
 
-    @staticmethod
     def get_iupac_code(base_counts):
         """Gets the IUPAC code for degenerate positions based on base counts."""
         iupac_dict = {
@@ -1063,7 +1061,6 @@ class QuasiAlignmentStrategy(Strategy):
         
         return dict1, dict2
         
-    @staticmethod
     def find_consensus_binding_regions(all_primers, window_size=10, threshold_proportion=0.6):
         """
         Identifies consensus binding regions for forward and reverse primers separately
@@ -1123,7 +1120,6 @@ class QuasiAlignmentStrategy(Strategy):
 
         return forward_consensus_regions, reverse_consensus_regions
         
-    @staticmethod    
     def select_consensus_primers(all_primers, forward_regions, reverse_regions):
         """
         Selects forward and reverse primers closest to each consensus binding region for each sequence.
@@ -1161,36 +1157,106 @@ class QuasiAlignmentStrategy(Strategy):
         
         return consensus_primers
         
-    def generate_degenerate_primers(self, consensus_primers):
+    def generate_degenerate_primers(consensus_primers):
         """
-        Generates degenerate primers for each consensus binding region.
+        Generates degenerate primers for each consensus binding region across all sequences.
 
-        :param consensus_primers: The output dictionary from select_consensus_primers_for_separate_regions.
-        :return: A dictionary with degenerate forward and reverse primers for each region.
+        :param consensus_primers: The output dictionary from select_consensus_primers.
+                                  Keys are sequence IDs, values are lists of primer dictionaries.
+        :return: A list of dictionaries, each containing degenerate forward and reverse primers for a consensus region.
         """
-        degenerate_primers = {}
+        degenerate_primers = []
+
+        # Collect all primers grouped by consensus region
+        region_primers = {}
 
         for seq_id, regions in consensus_primers.items():
-            degenerate_primers[seq_id] = []
-
             for region in regions:
-                # Collect forward and reverse primers across all sequences for the current region
-                forward_primer_list = [region['forward']] if region['forward'] else []
-                reverse_primer_list = [region['reverse']] if region['reverse'] else []
+                forward_region = region['forward_region']
+                reverse_region = region['reverse_region']
 
-                # Calculate degenerate consensus sequences for forward and reverse primers
-                forward_consensus = self.calculate_consensus(forward_primer_list) if forward_primer_list else None
-                reverse_consensus = self.calculate_consensus(reverse_primer_list) if reverse_primer_list else None
+                # Use the region as a key to group primers
+                region_key = (forward_region, reverse_region)
+                if region_key not in region_primers:
+                    region_primers[region_key] = {'forward': [], 'reverse': []}
 
-                # Store the consensus sequences in the output dictionary
-                degenerate_primers[seq_id].append({
-                    'forward_region': region['forward_region'],
-                    'reverse_region': region['reverse_region'],
-                    'forward_degenerate': forward_consensus,
-                    'reverse_degenerate': reverse_consensus
-                })
+                # Add primers from this sequence to the region's primer pool
+                if region['forward']:
+                    region_primers[region_key]['forward'].append(region['forward'])
+                if region['reverse']:
+                    region_primers[region_key]['reverse'].append(region['reverse'])
+
+        # Generate degenerate primers for each region
+        for (forward_region, reverse_region), primers in region_primers.items():
+            forward_consensus = self.calculate_consensus(primers['forward']) if primers['forward'] else None
+            reverse_consensus = self.calculate_consensus(primers['reverse']) if primers['reverse'] else None
+
+            degenerate_primers.append({
+                'forward_region': forward_region,
+                'reverse_region': reverse_region,
+                'forward_degenerate': forward_consensus,
+                'reverse_degenerate': reverse_consensus
+            })
 
         return degenerate_primers
+        
+    def design_primers_from_csv(self, input_csv, output_csv):
+        """
+        Designs primers for each sequence in a CSV file using Primer3, identifies consensus primer regions,
+        and generates degenerate primers for each target species.
+
+        :param input_csv: Path to the input CSV file containing columns 'Sequence ID', 'Gene Name', 'Species Name', 'DNA Sequence'.
+        :param output_csv: Path to the output CSV file to save degenerate primer sequences.
+        """
+        df = pd.read_csv(input_csv)
+        species_primers = {}
+
+        # Step 1: Collect primers for each sequence ID
+        for target_species in self.species_dict.keys():
+            species_primers[target_species] = {}
+
+            # Filter the DataFrame to get sequences for the target species
+            target_df = df[df['Species Name'] == target_species]
+
+            for _, row in target_df.iterrows():
+                sequence_id = row['Sequence ID']
+                sequence = row['DNA Sequence']
+
+                # Set sequence in primer parameters and design primers
+                self.primer_parameters['SEQUENCE_TEMPLATE'] = sequence
+                primers = primer3.bindings.designPrimers({}, self.primer_parameters)
+
+                # Store primers if available
+                if 'PRIMER_LEFT_0_SEQUENCE' in primers and 'PRIMER_RIGHT_0_SEQUENCE' in primers:
+                    primer_entry = {
+                        'left_seq': primers['PRIMER_LEFT_0_SEQUENCE'],
+                        'right_seq': primers['PRIMER_RIGHT_0_SEQUENCE'],
+                        'left_pos': primers['PRIMER_LEFT_0'][0],
+                        'right_pos': primers['PRIMER_RIGHT_0'][0]
+                    }
+                    if sequence_id not in species_primers[target_species]:
+                        species_primers[target_species][sequence_id] = []
+                    species_primers[target_species][sequence_id].append(primer_entry)
+
+        # Step 2: Identify consensus binding regions for each species
+        degenerate_primers = {}
+        for target_species, primer_dict in species_primers.items():
+            # Identify forward and reverse consensus binding regions
+            forward_regions, reverse_regions = self.find_consensus_binding_regions(primer_dict)
+            
+            # Generate degenerate primers based on identified regions
+            degenerate_primers[target_species] = self.generate_degenerate_primers(
+                self.select_consensus_primers(primer_dict, forward_regions, reverse_regions)
+            )
+
+        # Step 3: Write degenerate primers to output CSV
+        with open(output_csv, mode='w', newline='') as csv_file:
+            writer = csv.writer(csv_file)
+            writer.writerow(['Species', 'Primer Type', 'Consensus Sequence'])
+            for species, primer_data in degenerate_primers.items():
+                for region in primer_data:
+                    writer.writerow([species, 'Forward', region['forward_degenerate']])
+                    writer.writerow([species, 'Reverse', region['reverse_degenerate']])
         
     # --- Internal Classes ---
     
