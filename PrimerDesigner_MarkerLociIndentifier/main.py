@@ -1061,7 +1061,7 @@ class QuasiAlignmentStrategy(Strategy):
         
         return dict1, dict2
         
-    def find_consensus_binding_regions(all_primers, window_size=10, threshold_proportion=0.6):
+    def find_consensus_binding_regions(self, all_primers, window_size=10, threshold_proportion=0.6):
         """
         Identifies consensus binding regions for forward and reverse primers separately
         where a threshold proportion of primers bind across sequences.
@@ -1120,44 +1120,48 @@ class QuasiAlignmentStrategy(Strategy):
 
         return forward_consensus_regions, reverse_consensus_regions
         
-    def select_consensus_primers(all_primers, forward_regions, reverse_regions):
-        """
-        Selects forward and reverse primers closest to each consensus binding region for each sequence.
+    def select_consensus_primers(self, all_primers, forward_regions, reverse_regions):
+        # Pre-compute the best reverse primer for each reverse consensus region
+        reverse_best_primers = {}
+        for rev_region_start, rev_region_end in reverse_regions:
+            reverse_candidates = [
+                p for p in primers if rev_region_start <= p['right_pos'] <= rev_region_end
+            ]
+            if reverse_candidates:
+                reverse_best_primers[(rev_region_start, rev_region_end)] = min(
+                    reverse_candidates,
+                    key=lambda p: abs(p['right_pos'] - (rev_region_start + rev_region_end) // 2)
+                )
+            else:
+                reverse_best_primers[(rev_region_start, rev_region_end)] = None
 
-        :param all_primers: Dictionary with sequence IDs as keys and lists of primer dictionaries as values.
-        :param forward_regions: List of tuples with start and end positions of consensus binding regions for forward primers.
-        :param reverse_regions: List of tuples with start and end positions of consensus binding regions for reverse primers.
-        :return: A dictionary with sequence IDs and selected primers for each region.
-        """
-        consensus_primers = {seq_id: [] for seq_id in all_primers}
+        # Process forward regions and pair with pre-computed reverse primers
+        for region_start, region_end in forward_regions:
+            # Select the best forward primer
+            forward_candidates = [
+                p for p in primers if region_start <= p['left_pos'] <= region_end
+            ]
+            if forward_candidates:
+                selected_forward = min(
+                    forward_candidates,
+                    key=lambda p: abs(p['left_pos'] - (region_start + region_end) // 2)
+                )
+            else:
+                selected_forward = None
 
-        for seq_id, primers in all_primers.items():
-            for region_start, region_end in forward_regions:
-                forward_candidates = [p for p in primers if region_start <= p['left_pos'] <= region_end]
-                
-                if forward_candidates:
-                    selected_forward = min(forward_candidates, key=lambda p: abs(p['left_pos'] - (region_start + region_end) // 2))
-                else:
-                    selected_forward = None
-
-                for rev_region_start, rev_region_end in reverse_regions:
-                    reverse_candidates = [p for p in primers if rev_region_start <= p['right_pos'] <= rev_region_end]
-                    
-                    if reverse_candidates:
-                        selected_reverse = min(reverse_candidates, key=lambda p: abs(p['right_pos'] - (rev_region_start + rev_region_end) // 2))
-                    else:
-                        selected_reverse = None
-
-                    consensus_primers[seq_id].append({
-                        'forward_region': (region_start, region_end),
-                        'reverse_region': (rev_region_start, rev_region_end),
-                        'forward': selected_forward['left_seq'] if selected_forward else None,
-                        'reverse': selected_reverse['right_seq'] if selected_reverse else None
-                    })
+            # Loop through pre-computed reverse primers
+            for (rev_region_start, rev_region_end), selected_reverse in reverse_best_primers.items():
+                # Store the pair of forward and reverse primers
+                consensus_primers[seq_id].append({
+                    'forward_region': (region_start, region_end),
+                    'reverse_region': (rev_region_start, rev_region_end),
+                    'forward': selected_forward['left_seq'] if selected_forward else None,
+                    'reverse': selected_reverse['right_seq'] if selected_reverse else None
+                })
         
         return consensus_primers
         
-    def generate_degenerate_primers(consensus_primers):
+    def generate_degenerate_primers(self, consensus_primers):
         """
         Generates degenerate primers for each consensus binding region across all sequences.
 
