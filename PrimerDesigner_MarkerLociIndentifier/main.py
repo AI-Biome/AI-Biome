@@ -45,31 +45,6 @@ from collections import defaultdict
 import itertools
 from collections import Counter
 
-def create_species_dict(csv_file):
-    """
-    Reads a CSV file with target and non-target species and creates a dictionary where
-    keys are target species and values are lists of non-target species.
-
-    :param csv_file: Path to the CSV file with two columns: 'Target Species' and 'Non-Target Species'.
-    :return: A dictionary with target species as keys and lists of non-target species as values.
-    """
-    species_dict = {}
-
-    with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
-        reader = csv.reader(file)
-
-        # Skip header row if present
-        next(reader, None)
-
-        for row in reader:
-            target_species = row[0].strip()
-            non_target_species = [species.strip() for species in row[1].split(',')]
-
-            # Add to dictionary
-            species_dict[target_species] = non_target_species
-
-    return species_dict
-
 # Parsing the input FASTA file to a dictionary
 def parse_fasta_to_dict(fasta_file):
     sequence_dict = {}
@@ -518,6 +493,30 @@ class TargetedAmpliconSequencingStrategy(Strategy):
 
 class QuasiAlignmentStrategy(Strategy):
     # --- Internal Methods ---
+    
+    def parse_species_csv(self, file_path):
+        """
+        Parses a CSV file containing target species and their associated non-target species.
+
+        :param file_path: Path to the input CSV file.
+                          The file should have two columns: target species and non-target species (semicolon-separated).
+        :return: A dictionary with target species as keys and lists of non-target species as values.
+        """
+        species_dict = {}
+
+        with open(file_path, mode='r', newline='', encoding='utf-8') as csvfile:
+            reader = csv.reader(csvfile)
+            for row in reader:
+                # Skip empty rows
+                if not row or len(row) < 2:
+                    continue
+
+                target_species = row[0].strip()
+                non_target_species = [species.strip() for species in row[1].split(';') if species.strip()]
+                
+                species_dict[target_species] = non_target_species
+
+        return species_dict
         
     @staticmethod
     def manhattan_distance(point1, point2):
@@ -1203,6 +1202,27 @@ class QuasiAlignmentStrategy(Strategy):
             })
 
         return degenerate_primers
+
+    def create_species_dict(csv_file):
+        """
+        Reads a CSV file with target and non-target species and creates a dictionary where
+        keys are target species and values are lists of non-target species.
+
+        :param csv_file: Path to the CSV file with two columns: target species and semicolon-separated non-target species.
+        :return: A dictionary with target species as keys and lists of non-target species as values.
+        """
+        species_dict = {}
+
+        with open(csv_file, mode='r', newline='', encoding='utf-8') as file:
+            reader = csv.reader(file)
+
+            for row in reader:
+                target_species = row[0].strip()
+                non_target_species = [species.strip() for species in row[1].split(';')]
+
+                species_dict[target_species] = non_target_species
+
+        return species_dict
         
     def parse_primer3_config(self, file_path):
         """
@@ -1423,9 +1443,9 @@ class QuasiAlignmentStrategy(Strategy):
     def __repr__(self):
         return f"QuasiAlignment(cluster_id={self.cluster_id}, segments={self.segments}, medoid={self.medoid})"
 
-    def __init__(self, species_dict, primer_parameters):
+    def __init__(self, species_dict, primer_parameters_file):
         self.species_dict = species_dict
-        self.primer_parameters = primer_parameters
+        self.primer_parameters = self.parse_primer3_config(primer_parameters_file)
         
     def design_primers(self, input_folder=".", output_folder="output/primers"):
         """
