@@ -1443,8 +1443,8 @@ class QuasiAlignmentStrategy(Strategy):
     def __repr__(self):
         return f"QuasiAlignment(cluster_id={self.cluster_id}, segments={self.segments}, medoid={self.medoid})"
 
-    def __init__(self, species_dict, primer_parameters_file):
-        self.species_dict = species_dict
+    def __init__(self, species_dict_file, primer_parameters_file):
+        self.species_dict = self.create_species_dict(species_dict_file)
         self.primer_parameters = self.parse_primer3_config(primer_parameters_file)
         
     def design_primers(self, input_folder=".", output_folder="output/primers"):
