@@ -1204,6 +1204,30 @@ class QuasiAlignmentStrategy(Strategy):
 
         return degenerate_primers
         
+    def parse_primer3_config(self, file_path):
+        """
+        Reads a Primer3 configuration file and stores the parameters in a dictionary.
+        
+        :param file_path: Path to the Primer3 configuration file.
+        :return: A dictionary containing the Primer3 parameters.
+        """
+        primer3_params = {}
+
+        # Open and read the file line by line
+        with open(file_path, 'r') as file:
+            for line in file:
+                # Ignore comments and empty lines
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+
+                # Split the line into key and value
+                if "=" in line:
+                    key, value = line.split("=", 1)
+                    primer3_params[key.strip()] = value.strip()
+        
+        return primer3_params
+        
     def design_primers_from_csv(self, input_csv, output_csv):
         """
         Designs primers for each sequence in a CSV file using Primer3, identifies consensus primer regions,
@@ -1428,7 +1452,7 @@ class QuasiAlignmentStrategy(Strategy):
                 input_csv = os.path.join("output/panaroo/processed/selected", filename)
                 output_csv = os.path.join(output_folder, f"primers_{filename}")
                 print(f"Designing primers for {filename}")
-                self.design_degenerate_primers(input_csv, output_csv)
+                self.design_primers_from_csv(input_csv, output_csv)
         print("All primer designs completed.")
    
 class MarkerLociIdentificationStrategy(Strategy):
