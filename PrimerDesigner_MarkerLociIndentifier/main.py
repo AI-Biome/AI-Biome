@@ -1217,8 +1217,16 @@ class QuasiAlignmentStrategy(Strategy):
             reader = csv.reader(file)
 
             for row in reader:
+                # Skip empty rows
+                if not row:
+                    continue
+
                 target_species = row[0].strip()
-                non_target_species = [species.strip() for species in row[1].split(';')]
+                non_target_species = []
+
+                # Check if the row has a second column
+                if len(row) > 1:
+                    non_target_species = [species.strip() for species in row[1].split(';') if species.strip()]
 
                 species_dict[target_species] = non_target_species
 
@@ -1447,7 +1455,7 @@ class QuasiAlignmentStrategy(Strategy):
         self.species_dict = self.create_species_dict(species_dict_file)
         self.primer_parameters = self.parse_primer3_config(primer_parameters_file)
         
-    def design_primers(self, input_folder=".", output_folder="output/primers"):
+    def design_primers(self, input_folder=".", output_folder="output/primers", starting_point="genome_fasta_files"):
         """
         Runs the primer design process for all CSV files in the input folder.
 
@@ -1455,8 +1463,9 @@ class QuasiAlignmentStrategy(Strategy):
         :param output_folder: Directory where output CSV files will be saved (default: 'output/primers').
         """
 
-        self.run_prokka(input_folder)
-        self.run_panaroo_no_alignment()
+        if starting_point == "genome_fasta_files":
+            self.run_prokka(input_folder)
+            self.run_panaroo_no_alignment()
 
         self.process_panaroo_output()
         quasialignment_data = self.create_quasialignments(self.species_dict, segment_length=100, step=50,
@@ -4338,9 +4347,10 @@ if __name__ == "__main__":
     #parser.add_argument('-d', '--database_for_specificity_check', required=True, help = 'A database for checking the specificity of primers.')
     #parser.add_argument('-n', '--n_most_frequent', help='A number of the most frequently occurring primers to further work with.')
 
-    parser.add_argument('-i', '--input_directory', default=".", help='An input directory containing genome fasta files.')
+    parser.add_argument('-i', '--input_directory', default=".", help='An input directory.'
     parser.add_argument('-s', '--species_csv', required=True, help='A CSV file with target and non-target species.')
     parser.add_argument('-p', '--primer3_params', required=True, help='The Primer3 config file.')
+    parser.add_argument('-S', '--starting_point', default="panaroo_output", help='A starting point of the analysis. [genome_fasta_files | panaroo_output]')
 
     args = parser.parse_args()
 
@@ -4353,8 +4363,7 @@ if __name__ == "__main__":
     #else:
     #    raise ValueError("Unknown strategy specified.")
 
-    species_dict = create_species_dict(args.species.csv)
-    strategy = QuasiAlignmentStrategy(species_dict, args.primer3_params)
+    strategy = QuasiAlignmentStrategy(args.species.csv, args.primer3_params)
     strategy.design_primers(args.input_directory)
 
     # context = StrategyContext(strategy, args.input_file, args.output_file, args.database_for_specificity_check)
