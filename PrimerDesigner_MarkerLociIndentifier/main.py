@@ -491,9 +491,19 @@ class TargetedAmpliconSequencingStrategy(Strategy):
         return primer_design_algorithm.design_primers(input_file, output_file, primer_design_params, primer_summarizing_algorithm, primer_summarizing_params, specificity_check_algorithm, specificity_check_database)
 
 
-class QuasiAlignmentStrategy(Strategy):
+class QuasiAlignmentStrategy():
     # --- Internal Methods ---
     
+    def convert_csv_to_parquet(csv_file_path, parquet_file_path):
+        """
+        Converts a CSV file to a Parquet file.
+
+        :param csv_file_path: Path to the input CSV file.
+        :param parquet_file_path: Path to the output Parquet file.
+        """
+        df = pd.read_csv(csv_file_path)
+        df.to_parquet(parquet_file_path, index=False, engine='pyarrow')  # Or use engine='fastparquet'
+        
     def parse_species_csv(self, file_path):
         """
         Parses a CSV file containing target species and their associated non-target species.
@@ -4347,7 +4357,7 @@ if __name__ == "__main__":
     #parser.add_argument('-d', '--database_for_specificity_check', required=True, help = 'A database for checking the specificity of primers.')
     #parser.add_argument('-n', '--n_most_frequent', help='A number of the most frequently occurring primers to further work with.')
 
-    parser.add_argument('-i', '--input_directory', default=".", help='An input directory.'
+    parser.add_argument('-i', '--input_directory', default=".", help='An input directory.')
     parser.add_argument('-s', '--species_csv', required=True, help='A CSV file with target and non-target species.')
     parser.add_argument('-p', '--primer3_params', required=True, help='The Primer3 config file.')
     parser.add_argument('-S', '--starting_point', default="panaroo_output", help='A starting point of the analysis. [genome_fasta_files | panaroo_output]')
@@ -4363,7 +4373,7 @@ if __name__ == "__main__":
     #else:
     #    raise ValueError("Unknown strategy specified.")
 
-    strategy = QuasiAlignmentStrategy(args.species.csv, args.primer3_params)
+    strategy = QuasiAlignmentStrategy(args.species_csv, args.primer3_params)
     strategy.design_primers(args.input_directory)
 
     # context = StrategyContext(strategy, args.input_file, args.output_file, args.database_for_specificity_check)
