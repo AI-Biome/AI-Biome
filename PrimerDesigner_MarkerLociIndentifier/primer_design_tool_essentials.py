@@ -481,89 +481,76 @@ class QuasiAlignmentStrategy():
         return quasi_alignments
 
     def evaluate_informative_positions(self, quasialignment_data, species_dict, threshold, proportion_threshold,
-                                       output_dir="output/panaroo/processed/selected"):
+                                   output_dir="output/panaroo/processed/selected"):
         """
-        Evaluates each file (gene region) based on the proportion of informative positions.
-        A position is considered informative if, for all target species, the proportion of segments belonging
-        to a target species without any non-target species segments in the same quasi-alignment meets the threshold.
-        Files with informative proportions meeting or exceeding the proportion_threshold are copied to the output directory
-        and for these selected regions primers will be generated.
+        Evaluates each file based on the proportion of informative positions per target species.
+        A file is selected only if all target species meet the informative threshold.
+        Outputs a CSV summary with proportions per species per file.
 
-        :param quasialignment_data: A dictionary where keys are file names, values are dictionaries with positions as keys
-                                    and lists of QuasiAlignment objects as values.
-        :param species_dict: A dictionary where keys are target species and values are lists of non-target species.
-        :param threshold: The minimum proportion of target species segments at a position without non-target species
-                          required to consider the position informative.
-        :param proportion_threshold: The minimum proportion of informative positions required to select the file (region) for primer design.
-        :param output_dir: Directory to copy files that meet the informative proportion threshold (default: "output/panaroo/processed/selected").
-        :return: A dictionary where keys are file names and values are the proportions of informative positions.
+        :param quasialignment_data: Dict[filename -> Dict[position -> List[QuasiAlignment]]]
+        :param species_dict: Dict[target_species -> List[non_target_species]]
+        :param threshold: Proportion of target segments required at a position to be informative.
+        :param proportion_threshold: Proportion of informative positions required per species.
+        :param output_dir: Path to store selected files and the summary CSV.
+        :return: Dict[filename -> Dict[target_species -> proportion of informative positions]]
         """
-        file_informative_proportions = {}
+        file_species_proportions = {}
 
-        # Ensure the output directory exists
         os.makedirs(output_dir, exist_ok=True)
 
-        # Loop through each file and its corresponding quasi-alignments by position
         for file_name, positions_dict in quasialignment_data.items():
-            print(file_name)
-            print(positions_dict)
-            print("\n\n\n\n\n")
-            informative_count = 0  # Counter for informative positions
-            total_positions = len(positions_dict)  # Total number of positions
+            print(f"Evaluating file: {file_name}")
+            total_positions = len(positions_dict)
+            species_informative_counts = {species: 0 for species in species_dict}
 
-            # Loop through each position in the file
+            # Check informativeness per position per target species
             for position, quasi_alignments in positions_dict.items():
-                # Flag to track if this position is informative for all target species
-                is_informative_for_all_targets = True
-
-                # Loop through each target species in species_dict
                 for target_species, non_target_species_list in species_dict.items():
-                    # Count target species segments in quasi-alignments without non-target species
-                    target_only_count = 0
                     total_target_segments = 0
+                    target_only_count = 0
 
-                    # Evaluate each QuasiAlignment at the current position
                     for quasi_alignment in quasi_alignments:
-                        # Check if the quasi-alignment contains any segments from the non-target species
                         contains_non_target = any(
                             segment.species_name in non_target_species_list for segment in quasi_alignment.segments
                         )
 
-                        # Count segments from the target species in this quasi-alignment
-                        target_segments = [segment for segment in quasi_alignment.segments if
-                                           segment.species_name == target_species]
+                        target_segments = [s for s in quasi_alignment.segments if s.species_name == target_species]
                         total_target_segments += len(target_segments)
 
-                        # Only consider the quasi-alignment if no non-target species segments are present
                         if not contains_non_target:
                             target_only_count += len(target_segments)
 
-                    # Calculate the proportion of target-only segments at this position
                     if total_target_segments > 0:
                         target_proportion = target_only_count / total_target_segments
-                        print(target_proportion)
+                        if target_proportion >= threshold:
+                            species_informative_counts[target_species] += 1
 
-                        # If the proportion does not meet the threshold, mark position as non-informative and break
-                        if target_proportion < threshold:
-                            is_informative_for_all_targets = False
-                            break
+            # Calculate proportions and store them
+            species_proportions = {
+                species: species_informative_counts[species] / total_positions if total_positions > 0 else 0
+                for species in species_dict
+            }
+            file_species_proportions[file_name] = species_proportions
 
-                # If position is informative for all target species, increment informative count
-                if is_informative_for_all_targets:
-                    informative_count += 1
-
-            # Calculate the proportion of informative positions for this file
-            informative_proportion = informative_count / total_positions if total_positions > 0 else 0
-            file_informative_proportions[file_name] = informative_proportion
-
-            # Copy file if it meets the informative proportion threshold
-            if informative_proportion >= proportion_threshold:
-                source_file_path = os.path.join("output/panaroo/processed/", os.path.basename(file_name))
+            # Check if all species meet the proportion threshold
+            if all(p >= proportion_threshold for p in species_proportions.values()):
+                source_file_path = os.path.join("output/panaroo/processed", os.path.basename(file_name))
                 destination_file_path = os.path.join(output_dir, os.path.basename(file_name))
                 shutil.copy(source_file_path, destination_file_path)
-                print(f"Copied {file_name} to {output_dir} (informative proportion: {informative_proportion:.2f})")
+                print(f"{file_name} was evaluated as informative for all species.")
 
-        return file_informative_proportions
+        # Write summary CSV
+        summary_csv_path = os.path.join(output_dir, "informative_positions.csv")
+        with open(summary_csv_path, mode='w', newline='') as csvfile:
+            writer = csv.writer(csvfile)
+            header = ['File'] + list(species_dict.keys())
+            writer.writerow(header)
+
+            for file_name, proportions in file_species_proportions.items():
+                row = [file_name] + [f"{proportions[species]:.4f}" for species in species_dict]
+                writer.writerow(row)
+
+        return file_species_proportions
 
     def calculate_consensus(self, primer_list):
         """Calculates the consensus sequence from a list of primer sequences."""
