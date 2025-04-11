@@ -15,6 +15,61 @@ import primer3
 from datasketch import WeightedMinHashGenerator
 import time
 
+
+@dataclass
+class InputPaths:
+    raw_dir: Optional[str] = None
+    prokka_dir: Optional[str] = None
+    panaroo_dir: Optional[str] = None
+
+
+@dataclass
+class Primer3Params:
+    global_params: Dict[str, object] = field(default_factory=dict)
+    design_params: Dict[str, object] = field(default_factory=dict)
+
+
+@dataclass
+class Config:
+    input_type: str
+    input_paths: InputPaths
+    output_dir: str
+    max_cores: int
+    database_path: str
+    primer3_config_file: Optional[str] = None
+    primer3: Primer3Params = field(default_factory=Primer3Params)
+
+    def __post_init__(self):
+        allowed_inputs = {"raw", "prokka", "panaroo"}
+        if self.input_type not in allowed_inputs:
+            raise ValueError(f"`input_type` must be one of {allowed_inputs}, got: {self.input_type}")
+        
+        active_dir = {
+            "raw": self.input_paths.raw_dir,
+            "prokka": self.input_paths.prokka_dir,
+            "panaroo": self.input_paths.panaroo_dir,
+        }[self.input_type]
+        if not active_dir:
+            raise ValueError(f"{self.input_type}_dir must be set in `input_paths` for input_type = {self.input_type}")
+        
+        # Primer3 configuration logic
+        if self.primer3_config_file and self.primer3.global_params:
+            print("Warning: primer3_config_file is set. Inline primer3 parameters will be ignored.")
+
+
+class ConfigLoader:
+    @staticmethod
+    def load(path: str) -> Config:
+        with open(path, "r") as f:
+            raw = yaml.safe_load(f)
+
+        # Parse nested dataclasses manually
+        raw["input_paths"] = InputPaths(**raw.get("input_paths", {}))
+        raw["primer3"] = Primer3Params(**raw.get("primer3", {}))
+
+        return Config(**raw)
+
+
 class QuasiAlignmentStrategy():
     # --- Internal Methods ---
     
@@ -1179,6 +1234,9 @@ class QuasiAlignmentStrategy():
                 print(f"Designing primers for {filename}")
                 self.design_primers_from_csv(input_csv, output_csv)
         print("All primer designs completed.")
+
+class AlignmentStrategy():
+
         
         
 if __name__ == "__main__":
