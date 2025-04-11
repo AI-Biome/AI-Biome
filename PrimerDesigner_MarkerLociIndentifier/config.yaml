@@ -1,0 +1,30 @@
+input_type: raw  # options: raw, prokka, panaroo
+
+input_paths:
+  raw_dir: "data/raw_genomes/"
+  prokka_dir: null
+  panaroo_dir: null
+
+output_dir: "output/"
+
+max_cores: 8
+
+database_path: "db/GSR_seqs_taxa.2bit"
+
+primer3_config_file: null
+
+# If a path to the primer3 config file is specified via primer3_config_file, these parameters are ignored
+primer3:
+  global_params:
+    PRIMER_NUM_RETURN: 1
+    PRIMER_MAX_NS_ACCEPTED: 60
+    PRIMER_LIBERAL_BASE: 1
+
+  design_params:
+    PRIMER_MIN_SIZE: 16
+    # PRIMER_OPT_SIZE: 20
+    PRIMER_MAX_SIZE: 22
+    PRIMER_MIN_TM: 43.0
+    # PRIMER_OPT_TM: 47.0
+    PRIMER_MAX_TM: 50.0
+    PRIMER_PRODUCT_SIZE_RANGE: "500-1800"
