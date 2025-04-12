@@ -73,27 +73,26 @@ class ConfigLoader:
 class MSAStrategy:
     # --- Internal Methods ---
     
-    def run_prokka(self, input_dir=".", output_dir="output/prokka"):
+    def run_prokka(self):
         """
         Runs Prokka on all FASTA files in the specified input directory, saving results in a single output directory.
 
-        :param input_dir: Path to the directory containing FASTA files.
-        :param output_dir: Path to the directory where Prokka output will be saved.
         """
         # Ensure the output directory exists
-        os.makedirs(output_dir, exist_ok=True)
+        output_dir = os.path.join(self.output_dir, "prokka_output")
+        os.makedirs(, exist_ok=True)
 
         # Iterate over all files in the input directory
         for i, filename in enumerate(os.listdir(input_dir)):
             if filename.endswith(".fasta") or filename.endswith(".fa"):
-                entry_filepath = os.path.join(input_dir, filename)
+                entry_filepath = os.path.join(self.input_dir, filename)
                 species_name = os.path.splitext(filename)[0]  # Remove file extension for the prefix
 
                 # Construct Prokka command with the same output directory for all files
                 prokka_cmd = [
                     'prokka',
                     '--kingdom', 'Bacteria',
-                    '--outdir', output_dir,  # Use the same output directory
+                    '--outdir', output_dir,
                     '--prefix', f"{species_name}_{i}",  # Unique prefix for each file
                     '--cpus', self.max_cores,
                     entry_filepath
