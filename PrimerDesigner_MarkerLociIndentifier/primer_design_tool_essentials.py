@@ -95,7 +95,7 @@ class MSAStrategy:
                     '--kingdom', 'Bacteria',
                     '--outdir', output_dir,  # Use the same output directory
                     '--prefix', f"{species_name}_{i}",  # Unique prefix for each file
-                    '--cpus', "0",
+                    '--cpus', self.max_cores,
                     entry_filepath
                 ]
 
@@ -137,7 +137,16 @@ class MSAStrategy:
             self.primer3_design = config.primer3.design_params        
 
     def run(self):
-        pass       
+        print(f"Running with input type: {self.input_type}")
+        print(f"Input directory: {self.input_dir}")
+        print(f"Using {self.max_cores} cores")
+        if self.use_external_primer3_config:
+            print(f"Using external Primer3 config at {self.primer3_config_path}")
+        else:
+            print(f"Designing primers with Tm range: {self.primer3_design.get('PRIMER_MIN_TM')} - {self.primer3_design.get('PRIMER_MAX_TM')}")
+            print(f"Product size range: {self.primer3_design.get('PRIMER_PRODUCT_SIZE_RANGE')}")
+            print(f"Primer size range: {self.primer3_design.get('PRIMER_MIN_SIZE')} - {self.primer3_design.get('PRIMER_MAX_SIZE')}")
+            print(f"Number of primers per locus: {self.primer3_global.get('PRIMER_NUM_RETURN')}")      
 
 
 class QuasiAlignmentStrategy():
