@@ -70,6 +70,54 @@ class ConfigLoader:
         return Config(**raw)
 
 
+class MSAStrategy:
+    # --- Internal Methods ---
+    
+    def run_prokka(self, input_dir=".", output_dir="output/prokka"):
+        """
+        Runs Prokka on all FASTA files in the specified input directory, saving results in a single output directory.
+
+        :param input_dir: Path to the directory containing FASTA files.
+        :param output_dir: Path to the directory where Prokka output will be saved.
+        """
+        # Ensure the output directory exists
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Iterate over all files in the input directory
+        for i, filename in enumerate(os.listdir(input_dir)):
+            if filename.endswith(".fasta") or filename.endswith(".fa"):
+                entry_filepath = os.path.join(input_dir, filename)
+                species_name = os.path.splitext(filename)[0]  # Remove file extension for the prefix
+
+                # Construct Prokka command with the same output directory for all files
+                prokka_cmd = [
+                    'prokka',
+                    '--kingdom', 'Bacteria',
+                    '--outdir', output_dir,  # Use the same output directory
+                    '--prefix', f"{species_name}_{i}",  # Unique prefix for each file
+                    '--cpus', "0",
+                    entry_filepath
+                ]
+
+                # Run Prokka
+                print(f"Running Prokka for {filename} with command: {' '.join(prokka_cmd)}")
+                subprocess.run(prokka_cmd, check=True)
+                print(f"Prokka completed for {filename}")
+
+        print("All Prokka runs completed.")
+
+    # --- Internal Classes ---
+    
+    
+
+    # --- Public Methods ---
+
+    def __init__(self, config: Config):
+        pass
+    def run(self):
+        pass
+
+
 class QuasiAlignmentStrategy():
     # --- Internal Methods ---
     
@@ -1234,10 +1282,7 @@ class QuasiAlignmentStrategy():
                 print(f"Designing primers for {filename}")
                 self.design_primers_from_csv(input_csv, output_csv)
         print("All primer designs completed.")
-
-class AlignmentStrategy():
-
-        
+  
         
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="")
