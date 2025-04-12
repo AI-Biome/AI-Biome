@@ -80,7 +80,7 @@ class MSAStrategy:
         """
         # Ensure the output directory exists
         output_dir = os.path.join(self.output_dir, "prokka_output")
-        os.makedirs(, exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
 
         # Iterate over all files in the input directory
         for i, filename in enumerate(os.listdir(input_dir)):
@@ -105,7 +105,31 @@ class MSAStrategy:
 
         print("All Prokka runs completed.")
 
-    
+    def filter_unaligned_sequences(self):
+        output_dir = os.path.join(self.output_dir, "panaroo_output/unaligned_gene_sequences")
+        os.makedirs(output_dir, exist_ok=True)
+
+        for filename in os.listdir(self.input_dir):
+            if not filename.lower().endswith((".fa", ".fasta", ".fas")):
+                continue
+
+            file_path = os.path.join(self.input_dir, filename)
+            sequences = list(SeqIO.parse(file_path, "fasta"))
+            lengths = [len(seq.seq) for seq in sequences]
+
+            if not lengths:
+                continue
+
+            max_length = max(lengths)
+            stddev = statistics.stdev(lengths) if len(lengths) > 1 else 0
+
+            if max_length <= self.max_len and stddev <= self.max_stddev:
+                shutil.copy(file_path, os.path.join(self.output_dir, filename))
+                print(f"Kept {filename}: length max={max_length}, stddev={stddev:.1f}")
+            else:
+                print(f"Skipped {filename}: length max={max_length}, stddev={stddev:.1f}")
+
+        print("Filtering loci based on length max and SD complete.")
 
     # --- Internal Classes ---
     
