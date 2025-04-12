@@ -106,6 +106,8 @@ class MSAStrategy:
 
         print("All Prokka runs completed.")
 
+    
+
     # --- Internal Classes ---
     
     
@@ -113,9 +115,29 @@ class MSAStrategy:
     # --- Public Methods ---
 
     def __init__(self, config: Config):
-        pass
+        self.config = config
+
+        self.input_type = config.input_type
+        self.output_dir = config.output_dir
+        self.max_cores = config.max_cores
+        self.database_path = config.database_path
+
+        self.input_dir = {
+            "raw": config.input_paths.raw_dir,
+            "prokka": config.input_paths.prokka_dir,
+            "panaroo": config.input_paths.panaroo_dir
+        }[self.input_type]
+
+        if config.primer3_config_file:
+            self.use_external_primer3_config = True
+            self.primer3_config_path = config.primer3_config_file
+        else:
+            self.use_external_primer3_config = False
+            self.primer3_global = config.primer3.global_params
+            self.primer3_design = config.primer3.design_params        
+
     def run(self):
-        pass
+        pass       
 
 
 class QuasiAlignmentStrategy():

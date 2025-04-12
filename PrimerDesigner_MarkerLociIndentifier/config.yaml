@@ -7,9 +7,11 @@ input_paths:
 
 output_dir: "output/"
 
+database_path: "db/GSR_seqs_taxa.2bit"
+
 max_cores: 8
 
-database_path: "db/GSR_seqs_taxa.2bit"
+msa: mafft # options: mafft, clustal, prank
 
 primer3_config_file: null
 
