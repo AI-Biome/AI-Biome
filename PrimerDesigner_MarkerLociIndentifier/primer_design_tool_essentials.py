@@ -75,6 +75,41 @@ class ConfigLoader:
 
 class MSAStrategy:
     # --- Internal Methods ---
+
+    def build_non_target_dict(self):
+        root_dir = self.input_dir
+
+        non_target_dict = {}
+        valid_exts = {".fasta", ".fas", ".fa"}
+
+        def strip_ext(filename):
+            for ext in valid_exts:
+                if filename.endswith(ext):
+                    return filename[: -len(ext)]
+            return filename
+
+        for item in os.listdir(root_dir):
+            species_path = os.path.join(root_dir, item)
+            if os.path.isdir(species_path) and "_" in item:
+                nt_folder = os.path.join(species_path, "non-targets")
+                if os.path.isdir(nt_folder):
+                    files = [
+                        strip_ext(f)
+                        for f in os.listdir(nt_folder)
+                        if os.path.isfile(os.path.join(nt_folder, f)) and os.path.splitext(f)[1] in valid_exts
+                    ]
+                    non_target_dict[item] = sorted(files)
+
+        global_nt_folder = os.path.join(root_dir, "non-targets")
+        if os.path.isdir(global_nt_folder):
+            files = [
+                strip_ext(f)
+                for f in os.listdir(global_nt_folder)
+                if os.path.isfile(os.path.join(global_nt_folder, f)) and os.path.splitext(f)[1] in valid_exts
+            ]
+            non_target_dict["global"] = sorted(files)
+
+        return non_target_dict
     
     def run_prokka(self, species_folder):
         """
