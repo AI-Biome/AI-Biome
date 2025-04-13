@@ -13,7 +13,7 @@ max_cores: 8
 
 aligner: mafft # options: mafft, clustal, prank
 
-primer3_config_file: null
+primer3_config_file: null   # not fully implemented yet, please keep "null" here for now
 
 # If a path to the primer3 config file is specified via primer3_config_file, these parameters are ignored
 primer3:

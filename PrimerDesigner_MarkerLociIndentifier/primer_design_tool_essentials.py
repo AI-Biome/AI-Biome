@@ -16,11 +16,15 @@ from datasketch import WeightedMinHashGenerator
 import time
 import statistics
 from Bio import SeqIO
+from Bio.Seq import Seq
+from Bio.SeqRecord import SeqRecord
 import glob
 from shutil import copyfile
 import re
 import seaborn as sns
 import matplotlib.pyplot as plt
+from collections import Counter
+
 
 @dataclass
 class InputPaths:
@@ -236,7 +240,7 @@ class MSAStrategy:
             if not lengths:
                 continue
 
-            min_product_size, max_product_size = self.primer3_design["PRIMER_PRODUCT_SIZE_RANGE"][0]
+            min_product_size, max_product_size = self.primer3_global["PRIMER_PRODUCT_SIZE_RANGE"][0]
 
             median_size = (min_product_size + max_product_size) // 2
             max_stddev = int(median_size * 0.10)    # todo: make this user-defined?
@@ -399,7 +403,7 @@ class MSAStrategy:
 
         return df
 
-    def plot_informativeness_heatmap(self):
+    def plot_informativeness_heatmap(self, species_folder):
         output_dir = os.path.join(self.output_dir, species_folder, "informative_loci")
         csv_file = os.path.join(output_dir, "snp_summary.csv")
         output_file = os.path.join(output_dir, "heatmap_informativeness.png")
@@ -428,7 +432,7 @@ class MSAStrategy:
 
         return output_file
 
-    def plot_snp_density_lines(self, top_n=5):
+    def plot_snp_density_lines(self, species_folder, top_n=5):
         import os
         import matplotlib.pyplot as plt
         import seaborn as sns
@@ -475,10 +479,90 @@ class MSAStrategy:
         print(f"SNP density plots saved to: {plot_dir}")
         return plot_dir
 
+    def design_primers(self, species_folder):
+        input_dir = os.path.join(self.output_dir, species_folder, "informative_loci", "consensus_sequences")
+        snp_summary_csv = self.snp_summary_csv
+        target_species = species_folder
+        output_dir = os.path.join(self.output_dir, species_folder, "primers")
+        os.makedirs(output_dir, exist_ok=True)
+
+        window_size = self.snp_window_size
+        top_n = self.snp_top_n
+        min_snps = self.min_snps
+
+        os.makedirs(output_dir, exist_ok=True)
+
+        df = pd.read_csv(snp_summary_csv)
+        top_loci = df.sort_values("Avg_Prop_Informative_SNPs", ascending=False).head(top_n)
+
+        primer_results = []
+
+        for _, row in top_loci.iterrows():
+            locus_name = row["Locus"]
+            snp_col = f"SNP_Pos_{target_species}"
+            if snp_col not in row or pd.isna(row[snp_col]):
+                continue
+
+            try:
+                snp_positions = sorted(set(map(int, row[snp_col].split(','))))
+            except ValueError:
+                continue
+
+            best_start, best_count = 0, 0
+            for i in range(len(snp_positions)):
+                start = snp_positions[i]
+                end = start + window_size
+                count = sum(start <= x <= end for x in snp_positions)
+                if count > best_count:
+                    best_start = start
+                    best_count = count
+
+            if best_count < min_snps:
+                continue
+
+            fasta_path = os.path.join(input_dir, locus_name)
+            try:
+                record = next(SeqIO.parse(fasta_path, "fasta"))
+            except Exception:
+                continue
+
+            seq = str(record.seq)
+            actual_window = min(window_size, len(seq) - best_start)
+            if actual_window < 100:
+                continue
+
+            global_args = self.primer3_global.copy()
+            global_args["PRIMER_PRODUCT_SIZE_RANGE"] = [[100, actual_window]]
+
+            result = primer3.bindings.designPrimers(
+                {
+                    'SEQUENCE_ID': locus_name,
+                    'SEQUENCE_TEMPLATE': seq,
+                    'SEQUENCE_INCLUDED_REGION': [best_start, actual_window],
+                },
+                global_args
+            )
+
+            primer_results.append({
+                "Locus": locus_name,
+                "SNPs_Captured": best_count,
+                "Window_Start": best_start,
+                "Window_End": best_start + actual_window,
+                "LEFT_PRIMER": result.get("PRIMER_LEFT_0_SEQUENCE"),
+                "RIGHT_PRIMER": result.get("PRIMER_RIGHT_0_SEQUENCE"),
+                "PRODUCT_SIZE": result.get("PRIMER_PAIR_0_PRODUCT_SIZE")
+            })
+
+        primer_df = pd.DataFrame(primer_results)
+        output_path = os.path.join(output_dir, "primer_design_summary.csv")
+        primer_df.to_csv(output_path, index=False)
+
+        return primer_df
+
     # --- Internal Classes ---
     
     
-
+    
     # --- Public Methods ---
 
     def __init__(self, config: Config):
@@ -497,13 +581,13 @@ class MSAStrategy:
 
         self.aligner = config.aligner
 
-        if config.primer3_config_file:
+        if config.primer3_config_file:  # todo
             self.use_external_primer3_config = True
             self.primer3_config_path = config.primer3_config_file
         else:
             self.use_external_primer3_config = False
             self.primer3_global = config.primer3.global_params
-            self.primer3_design = config.primer3.design_params      
+            # self.primer3_design = config.primer3.design_params      
 
         self.snp_window_size = config["snp_primer_design"]["snp_window_size"]
         self.snp_top_n = config["snp_primer_design"]["snp_top_n"]
