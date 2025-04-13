@@ -18,6 +18,7 @@ import statistics
 from Bio import SeqIO
 import glob
 from shutil import copyfile
+import re
 
 @dataclass
 class InputPaths:
@@ -75,6 +76,54 @@ class ConfigLoader:
 
 class MSAStrategy:
     # --- Internal Methods ---
+
+    def standardize_fasta_headers(self):
+        root_dir = self.input_dir
+
+        valid_exts = {".fasta", ".fas", ".fa"}
+
+        def is_fasta_file(filename):
+            return os.path.splitext(filename)[1] in valid_exts
+
+        def extract_species_name(filename):
+            name = os.path.splitext(filename)[0]
+            match = re.match(r"(.+)_\d+$", name)
+            return match.group(1) if match else name
+
+        def fix_fasta_headers(filepath, species_name):
+            lines = []
+            with open(filepath, "r") as f:
+                for line in f:
+                    if line.startswith(">"):
+                        header = line[1:].strip()
+                        new_header = f">{species_name}_{header}"
+                        lines.append(new_header + "\n")
+                    else:
+                        lines.append(line)
+            with open(filepath, "w") as f:
+                f.writelines(lines)
+
+        for folder in os.listdir(root_dir):
+            folder_path = os.path.join(root_dir, folder)
+            if not os.path.isdir(folder_path):
+                continue
+            for subfolder in ["", "non-targets"]:
+                sub_path = os.path.join(folder_path, subfolder)
+                if not os.path.isdir(sub_path):
+                    continue
+                for file in os.listdir(sub_path):
+                    if is_fasta_file(file):
+                        filepath = os.path.join(sub_path, file)
+                        species_name = extract_species_name(file)
+                        fix_fasta_headers(filepath, species_name)
+
+        global_non_targets = os.path.join(root_dir, "non-targets")
+        if os.path.isdir(global_non_targets):
+            for file in os.listdir(global_non_targets):
+                if is_fasta_file(file):
+                    filepath = os.path.join(global_non_targets, file)
+                    species_name = extract_species_name(file)
+                    fix_fasta_headers(filepath, species_name)
 
     def build_non_target_dict(self):
         root_dir = self.input_dir
