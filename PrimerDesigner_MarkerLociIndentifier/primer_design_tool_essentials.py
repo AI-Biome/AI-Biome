@@ -161,34 +161,27 @@ class MSAStrategy:
         return non_target_dict
     
     def run_prokka(self, species_folder):
-        """
-        Runs Prokka on all FASTA files in the specified input directory, saving results in a single output directory.
-
-        """
-        # Ensure the output directory exists
         output_dir = os.path.join(self.output_dir, species_folder, "prokka_output")
         os.makedirs(output_dir, exist_ok=True)
 
-        # Iterate over all files in the input directory
-        for i, filename in enumerate(os.listdir(self.input_dir)):
-            if filename.endswith(".fasta") or filename.endswith(".fa"):
-                entry_filepath = os.path.join(self.input_dir, filename)
-                species_name = os.path.splitext(filename)[0]  # Remove file extension for the prefix
+        for root, _, files in os.walk(self.input_dir):
+            for filename in files:
+                if filename.endswith(".fasta") or filename.endswith(".fa"):
+                    entry_filepath = os.path.join(root, filename)
+                    species_name = os.path.splitext(filename)[0]
 
-                # Construct Prokka command with the same output directory for all files
-                prokka_cmd = [
-                    'prokka',
-                    '--kingdom', 'Bacteria',
-                    '--outdir', output_dir,
-                    '--prefix', species_name,  # Unique prefix for each file
-                    '--cpus', self.max_cores,
-                    entry_filepath
-                ]
+                    prokka_cmd = [
+                        'prokka',
+                        '--kingdom', 'Bacteria',
+                        '--outdir', output_dir,
+                        '--prefix', species_name,
+                        '--cpus', str(self.max_cores),
+                        entry_filepath
+                    ]
 
-                # Run Prokka
-                print(f"Running Prokka for {filename} with command: {' '.join(prokka_cmd)}")
-                subprocess.run(prokka_cmd, check=True)
-                print(f"Prokka completed for {filename}")
+                    print(f"Running Prokka for {filename} with command: {' '.join(prokka_cmd)}")
+                    subprocess.run(prokka_cmd, check=True)
+                    print(f"Prokka completed for {filename}")
 
         print("All Prokka runs completed.")
 
