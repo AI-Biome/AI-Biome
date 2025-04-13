@@ -15,6 +15,9 @@ aligner: mafft # options: mafft, clustal, prank
 
 primer3_config_file: null
 
+locus_filtering:
+  max_seq_length_stddev:
+
 # If a path to the primer3 config file is specified via primer3_config_file, these parameters are ignored
 primer3:
   global_params:

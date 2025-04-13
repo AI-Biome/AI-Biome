@@ -95,7 +95,7 @@ class MSAStrategy:
                     'prokka',
                     '--kingdom', 'Bacteria',
                     '--outdir', output_dir,
-                    '--prefix', f"{species_name}_{i}",  # Unique prefix for each file
+                    '--prefix', species_name,  # Unique prefix for each file
                     '--cpus', self.max_cores,
                     entry_filepath
                 ]
@@ -119,7 +119,7 @@ class MSAStrategy:
                     shutil.copy(src, dst)
 
     def run_panaroo(self, species_folder):
-        input_dir = os.path.join(self.output_dir, species_folder, "prokka_output","gff")
+        input_dir = os.path.join(self.output_dir, species_folder, "prokka_output", "gff")
         output_dir = os.path.join(self.output_dir, species_folder, "panaroo_output")
         os.makedirs(output_dir, exist_ok=True)        
         gff_files = glob.glob(os.path.join(input_dir, "*.gff"))
@@ -142,7 +142,7 @@ class MSAStrategy:
 
     def filter_unaligned_sequences(self, species_folder):
         input_dir = os.path.join(self.output_dir, species_folder, "panaroo_output", "unaligned_gene_sequences")
-        output_dir = os.path.join(self.output_dir, species_folder, "panaroo_output","unaligned_gene_sequences","filtered_sequences")
+        output_dir = os.path.join(input_dir, "filtered_sequences")
         os.makedirs(output_dir, exist_ok=True)
 
         for filename in os.listdir(input_dir):
@@ -156,16 +156,25 @@ class MSAStrategy:
             if not lengths:
                 continue
 
-            max_length = max(lengths)
+            min_product_size, max_product_size = self.primer3_design["PRIMER_PRODUCT_SIZE_RANGE"][0]
+
+            median_size = (min_product_size + max_product_size) // 2
+            max_stddev = int(median_size * 0.10)    # todo: make this user-defined?
+
             stddev = statistics.stdev(lengths) if len(lengths) > 1 else 0
+            if stddev > max_stddev:
+                print(f"Skipped {filename}: sequence length SD too high ({stddev:.1f})")
+                continue
 
-            if max_length <= self.max_len and stddev <= self.max_stddev:
-                shutil.copy(file_path, os.path.join(self.output_dir, filename))
-                print(f"Kept {filename}: length max={max_length}, stddev={stddev:.1f}")
+            length_max = max(lengths)
+
+            if min_product_size <= length_max <= max_product_size:
+                shutil.copy(file_path, os.path.join(output_dir, filename))
+                print(f"Kept {filename}: stddev={stddev:.1f}, max length={length_max}")
             else:
-                print(f"Skipped {filename}: length max={max_length}, stddev={stddev:.1f}")
+                print(f"Skipped {filename}: max length outside of target boundaries")
 
-        print("Filtering loci based on length max and SD complete.")
+        print("Filtering loci based on standard deviation and length complete.")
 
     def run_alignment(self, species_folder):
         unaligned_dir = os.path.join(self.output_dir, species_folder, "panaroo_output","unaligned_gene_sequences","filtered_sequences")
