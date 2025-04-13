@@ -14,7 +14,8 @@ import numpy as np
 import primer3
 from datasketch import WeightedMinHashGenerator
 import time
-
+import statistics
+from Bio import SeqIO
 
 @dataclass
 class InputPaths:
@@ -83,7 +84,7 @@ class MSAStrategy:
         os.makedirs(output_dir, exist_ok=True)
 
         # Iterate over all files in the input directory
-        for i, filename in enumerate(os.listdir(input_dir)):
+        for i, filename in enumerate(os.listdir(self.input_dir)):
             if filename.endswith(".fasta") or filename.endswith(".fa"):
                 entry_filepath = os.path.join(self.input_dir, filename)
                 species_name = os.path.splitext(filename)[0]  # Remove file extension for the prefix
@@ -106,7 +107,8 @@ class MSAStrategy:
         print("All Prokka runs completed.")
 
     def filter_unaligned_sequences(self):
-        output_dir = os.path.join(self.output_dir, "panaroo_output/unaligned_gene_sequences")
+        input_dir = os.path.join(self.output_dir, "panaroo_output/unaligned_gene_sequences")
+        output_dir = os.path.join(self.output_dir, "panaroo_output/unaligned_gene_sequences/filtered_sequences")
         os.makedirs(output_dir, exist_ok=True)
 
         for filename in os.listdir(self.input_dir):
@@ -131,6 +133,45 @@ class MSAStrategy:
 
         print("Filtering loci based on length max and SD complete.")
 
+    def run_alignment(self):
+        unaligned_dir = os.path.join(self.output_dir, "panaroo_output/unaligned_gene_sequences/filtered_sequences")
+        aligned_dir = os.path.join(unaligned_dir, "aligned")
+        os.makedirs(aligned_dir, exist_ok=True)
+
+        for filename in os.listdir(unaligned_dir):
+            if not filename.lower().endswith((".fa", ".fasta", ".fas")):
+                continue
+
+            input_path = os.path.join(unaligned_dir, filename)
+            output_path = os.path.join(aligned_dir, filename)
+
+            try:
+                if self.aligner == "mafft":
+                    cmd = ["mafft", "--auto", input_path]
+
+                elif self.aligner == "clustal":
+                    cmd = ["clustalo", "-i", input_path, "-o", output_path, "--force"]
+
+                elif self.aligner == "prank":
+                    prefix = os.path.splitext(output_path)[0]
+                    cmd = ["prank", "-d={}".format(input_path), "-o={}".format(prefix), "-f=fasta"]
+
+                else:
+                    raise ValueError(f"Unsupported aligner: {self.aligner}")
+
+                if self.aligner == "mafft":
+                    with open(output_path, "w") as outfile:
+                        subprocess.run(cmd, stdout=outfile, stderr=subprocess.DEVNULL, check=True)
+                else:
+                    subprocess.run(cmd, stderr=subprocess.DEVNULL, stdout=subprocess.DEVNULL, check=True)
+
+                print(f"Aligned with {self.aligner}: {filename}")
+
+            except subprocess.CalledProcessError:
+                print(f"Alignment failed for {filename} using {self.aligner}")
+
+        print("Alignment of all selected loci complete.")
+
     # --- Internal Classes ---
     
     
@@ -150,6 +191,8 @@ class MSAStrategy:
             "prokka": config.input_paths.prokka_dir,
             "panaroo": config.input_paths.panaroo_dir
         }[self.input_type]
+
+        self.aligner = config.aligner
 
         if config.primer3_config_file:
             self.use_external_primer3_config = True
