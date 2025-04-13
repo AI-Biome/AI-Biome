@@ -17,6 +17,7 @@ import time
 import statistics
 from Bio import SeqIO
 import glob
+from shutil import copyfile
 
 @dataclass
 class InputPaths:
@@ -214,6 +215,94 @@ class MSAStrategy:
                 print(f"Alignment failed for {filename} using {self.aligner}")
 
         print("Alignment of all selected loci complete.")
+
+    def is_informative_site_by_species(self, column, target_species, species_set):
+
+        VALID_BASES = {'A', 'T', 'C', 'G', '-'}
+
+        base_by_species = {}
+        for sp, base in column:
+            base = base.upper()
+            if base in VALID_BASES:
+                base_by_species.setdefault(sp, []).append(base)
+
+        target_bases = set(base_by_species.get(target_species, []))
+        results = {}
+        for sp in species_set:
+            if sp == target_species or sp not in base_by_species:
+                continue
+            other_bases = set(base_by_species[sp])
+            if target_bases and other_bases and target_bases.isdisjoint(other_bases):
+                results[sp] = True
+            else:
+                results[sp] = False
+        return results
+
+    def assess_loci_by_species(self, species_folder, threshold=0.05, output_csv="snp_informative_summary.csv"):
+        input_dir = os.path.join(self.output_dir, species_folder, "panaroo_output","unaligned_gene_sequences","filtered_sequences", "aligned")
+        output_dir = os.path.join(self.output_dir, species_folder, "informative_loci")
+        os.makedirs(output_dir, exist_ok=True)
+
+        target_species = species_folder
+
+        summary = []
+
+        for file in os.listdir(species_folder):
+            if not file.endswith('.fasta') and not file.endswith('.fa'):
+                continue
+            path = os.path.join(species_folder, file)
+            try:
+                alignment = AlignIO.read(path, 'fasta')
+            except Exception:
+                continue
+
+            sequences = [(rec.id.split('_')[0] + '_' + rec.id.split('_')[1], rec.seq) for rec in alignment]
+            species_set = set(sp for sp, _ in sequences)
+
+            columns = list(zip(*[[ (sp, base) for base in str(seq) ] for sp, seq in sequences]))
+
+            informative_counts = {sp: 0 for sp in species_set if sp != target_species}
+            for col in columns:
+                info_result = self.is_informative_site_by_species(col, target_species, species_set)
+                for sp, is_inf in info_result.items():
+                    if is_inf:
+                        informative_counts[sp] += 1
+
+            total_positions = len(columns)
+            informative_props = {sp: informative_counts[sp] / total_positions if total_positions > 0 else 0 for sp in informative_counts}
+
+            target_lens = [len(seq) for sp, seq in sequences if sp == target_species]
+            nontarget_lens = [len(seq) for sp, seq in sequences if sp != target_species]
+            med_target_len = pd.Series(target_lens).median() if target_lens else 0
+            med_nontarget_len = pd.Series(nontarget_lens).median() if nontarget_lens else 0
+            len_diff = med_target_len - med_nontarget_len
+
+            avg_prop = pd.Series(informative_props.values()).mean()
+            avg_abs = pd.Series(informative_counts.values()).mean()
+
+            record = {
+                'Locus': file,
+                'Avg_Prop_Informative_SNPs': avg_prop,
+                'Avg_Abs_Informative_SNPs': avg_abs,
+                'Med_Target_Len': med_target_len,
+                'Med_NonTarget_Len': med_nontarget_len,
+                'Len_Diff': len_diff
+            }
+
+            for sp in informative_props:
+                record[f'Prop_{sp}'] = informative_props[sp]
+                record[f'Abs_{sp}'] = informative_counts[sp]
+
+            summary.append(record)
+
+            if avg_prop >= threshold:
+                copy(path, output_dir)
+
+        df = pd.DataFrame(summary)
+        df.sort_values(by='Avg_Prop_Informative_SNPs', ascending=False, inplace=True)
+        df.to_csv(output_csv, index=False)
+
+        return df
 
     # --- Internal Classes ---
     
