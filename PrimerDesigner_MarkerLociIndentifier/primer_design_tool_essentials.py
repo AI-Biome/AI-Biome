@@ -107,6 +107,17 @@ class MSAStrategy:
 
         print("All Prokka runs completed.")
 
+    def collect_gff_files(self, species_folder):
+        input_dir = os.path.join(self.output_dir, species_folder, "prokka_output")
+        output_dir = os.path.join(input_dir, "gff")
+        os.makedirs(output_dir, exist_ok=True)
+        for root, _, files in os.walk(input_dir):
+            for file in files:
+                if file.endswith(".gff"):
+                    src = os.path.join(root, file)
+                    dst = os.path.join(output_dir, file)
+                    shutil.copy(src, dst)
+
     def run_panaroo(self, species_folder):
         input_dir = os.path.join(self.output_dir, species_folder, "prokka_output","gff")
         output_dir = os.path.join(self.output_dir, species_folder, "panaroo_output")
