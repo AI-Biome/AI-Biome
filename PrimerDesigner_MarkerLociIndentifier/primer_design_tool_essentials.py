@@ -262,11 +262,14 @@ class MSAStrategy:
             columns = list(zip(*[[ (sp, base) for base in str(seq) ] for sp, seq in sequences]))
 
             informative_counts = {sp: 0 for sp in species_set if sp != target_species}
-            for col in columns:
-                info_result = self.is_informative_site_by_species(col, target_species, species_set)
+            informative_positions = {sp: [] for sp in informative_counts}
+
+            for pos, col in enumerate(columns):
+                info_result = is_informative_site_by_species(col, target_species, species_set)
                 for sp, is_inf in info_result.items():
                     if is_inf:
                         informative_counts[sp] += 1
+                        informative_positions[sp].append(pos)
 
             total_positions = len(columns)
             informative_props = {sp: informative_counts[sp] / total_positions if total_positions > 0 else 0 for sp in informative_counts}
@@ -292,6 +295,18 @@ class MSAStrategy:
             for sp in informative_props:
                 record[f'Prop_{sp}'] = informative_props[sp]
                 record[f'Abs_{sp}'] = informative_counts[sp]
+
+                snp_pos_list = informative_positions[sp]
+                record[f'SNP_Pos_{sp}'] = ','.join(map(str, snp_pos_list))
+
+                if len(snp_pos_list) >= 2:
+                    mean = np.mean(snp_pos_list)
+                    std = np.std(snp_pos_list)
+                    lower = max(0, int(mean - 2 * std))
+                    upper = min(total_positions - 1, int(mean + 2 * std))
+                    record[f'Core_Region_{sp}'] = f"{lower}-{upper}"
+                else:
+                    record[f'Core_Region_{sp}'] = ""
 
             summary.append(record)
 
