@@ -321,7 +321,7 @@ class MSAStrategy:
                 results[sp] = False
         return results
 
-    def assess_loci_by_species(self, species_folder, threshold=0.05):
+    def assess_loci_by_species(self, species_folder):
         input_dir = os.path.join(self.output_dir, species_folder, "panaroo_output","unaligned_gene_sequences","filtered_sequences", "aligned")
         output_dir = os.path.join(self.output_dir, species_folder, "informative_loci")
         os.makedirs(output_dir, exist_ok=True)
@@ -394,7 +394,7 @@ class MSAStrategy:
 
             summary.append(record)
 
-            if avg_prop >= threshold:
+            if avg_prop >= self.snp_avg_prop_threshold:
                 copy(path, output_dir)
 
         df = pd.DataFrame(summary)

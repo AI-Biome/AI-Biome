@@ -7,11 +7,11 @@ input_paths:
 
 output_dir: "output/"
 
-database_path: "db/GSR_seqs_taxa.2bit"
-
 max_cores: 8
 
 aligner: mafft # options: mafft, clustal, prank
+
+snp_avg_prop_threshold: 0.05
 
 primer3_config_file: null   # not fully implemented yet, please keep "null" here for now
 
@@ -33,3 +33,10 @@ snp_primer_design:
   snp_window_size: 250        # Size of the sliding window to search for informative SNP clusters
   snp_top_n: 5                # Number of top loci (ranked by informativeness) to design primers for
   min_snps: 3                 # Minimum number of informative SNPs required within a window to proceed
+
+validation:
+  perform: no
+  database: "db/GSR_seqs_taxa.2bit"
+  pblat_min_identity: 99.9
+  match_median_filter_tolerance: 10
+  
