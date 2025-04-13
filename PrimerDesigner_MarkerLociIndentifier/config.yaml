@@ -15,9 +15,6 @@ aligner: mafft # options: mafft, clustal, prank
 
 primer3_config_file: null
 
-locus_filtering:
-  max_seq_length_stddev:
-
 # If a path to the primer3 config file is specified via primer3_config_file, these parameters are ignored
 primer3:
   global_params:
@@ -33,3 +30,8 @@ primer3:
     # PRIMER_OPT_TM: 47.0
     PRIMER_MAX_TM: 50.0
     PRIMER_PRODUCT_SIZE_RANGE: "500-1800"
+
+snp_primer_design:
+  snp_window_size: 250        # Size of the sliding window to search for informative SNP clusters
+  snp_top_n: 5                # Number of top loci (ranked by informativeness) to design primers for
+  min_snps: 3                 # Minimum number of informative SNPs required within a window to proceed
