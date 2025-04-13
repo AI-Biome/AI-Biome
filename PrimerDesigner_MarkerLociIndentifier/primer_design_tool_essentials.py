@@ -129,36 +129,36 @@ class MSAStrategy:
 
     def build_non_target_dict(self):
         root_dir = self.input_dir
-
         non_target_dict = {}
         valid_exts = {".fasta", ".fas", ".fa"}
 
-        def strip_ext(filename):
-            for ext in valid_exts:
-                if filename.endswith(ext):
-                    return filename[: -len(ext)]
-            return filename
+        def extract_species_name(filename):
+            name = os.path.splitext(filename)[0]
+            parts = name.rsplit("_", 1)
+            if len(parts) == 2 and parts[1].isdigit():
+                return parts[0]
+            return name
 
         for item in os.listdir(root_dir):
             species_path = os.path.join(root_dir, item)
             if os.path.isdir(species_path) and "_" in item:
                 nt_folder = os.path.join(species_path, "non-targets")
                 if os.path.isdir(nt_folder):
-                    files = [
-                        strip_ext(f)
+                    species_set = {
+                        extract_species_name(f)
                         for f in os.listdir(nt_folder)
                         if os.path.isfile(os.path.join(nt_folder, f)) and os.path.splitext(f)[1] in valid_exts
-                    ]
-                    non_target_dict[item] = sorted(files)
+                    }
+                    non_target_dict[item] = sorted(species_set)
 
         global_nt_folder = os.path.join(root_dir, "non-targets")
         if os.path.isdir(global_nt_folder):
-            files = [
-                strip_ext(f)
+            species_set = {
+                extract_species_name(f)
                 for f in os.listdir(global_nt_folder)
                 if os.path.isfile(os.path.join(global_nt_folder, f)) and os.path.splitext(f)[1] in valid_exts
-            ]
-            non_target_dict["global"] = sorted(files)
+            }
+            non_target_dict["global"] = sorted(species_set)
 
         return non_target_dict
     
@@ -399,8 +399,10 @@ class MSAStrategy:
 
         return df
 
-    def plot_informativeness_heatmap(self, csv_file, output_file="heatmap_informativeness.png"):
+    def plot_informativeness_heatmap(self):
         output_dir = os.path.join(self.output_dir, species_folder, "informative_loci")
+        csv_file = os.path.join(output_dir, "snp_summary.csv")
+        output_file = os.path.join(output_dir, "heatmap_informativeness.png")
 
         df = pd.read_csv(csv_file)
 
@@ -425,6 +427,53 @@ class MSAStrategy:
         plt.close()
 
         return output_file
+
+    def plot_snp_density_lines(self, top_n=5):
+        import os
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+        import pandas as pd
+
+        output_dir = os.path.join(self.output_dir, species_folder, "informative_loci")
+        csv_file = os.path.join(output_dir, "snp_summary.csv")
+        plot_dir = os.path.join(output_dir, "snp_density_plots")
+        os.makedirs(plot_dir, exist_ok=True)
+
+        df = pd.read_csv(csv_file)
+
+        if "Avg_Prop_Informative_SNPs" not in df.columns:
+            print("Missing ranking column 'Avg_Prop_Informative_SNPs'.")
+            return
+
+        top_loci = df.sort_values("Avg_Prop_Informative_SNPs", ascending=False).head(top_n)
+
+        prop_cols = [col for col in df.columns if col.startswith("SNP_Pos_")]
+
+        for _, row in top_loci.iterrows():
+            locus_name = row["Locus"]
+            plt.figure(figsize=(12, 3))
+
+            for col in prop_cols:
+                species = col.replace("SNP_Pos_", "")
+                if pd.isna(row[col]) or not row[col].strip():
+                    continue
+                try:
+                    positions = list(map(int, row[col].split(',')))
+                except ValueError:
+                    continue
+                sns.histplot(positions, bins=50, kde=False, label=species, element="step", fill=False)
+
+            plt.title(f"SNP Position Distribution - {locus_name}")
+            plt.xlabel("Alignment Position")
+            plt.ylabel("SNP Count")
+            plt.legend(title="Non-Target Species", loc="upper right", fontsize="small")
+            plt.tight_layout()
+            plot_path = os.path.join(plot_dir, f"snp_density_{locus_name.replace('.','_')}.png")
+            plt.savefig(plot_path)
+            plt.close()
+
+        print(f"SNP density plots saved to: {plot_dir}")
+        return plot_dir
 
     # --- Internal Classes ---
     
