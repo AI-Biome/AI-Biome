@@ -503,7 +503,11 @@ class MSAStrategy:
         else:
             self.use_external_primer3_config = False
             self.primer3_global = config.primer3.global_params
-            self.primer3_design = config.primer3.design_params        
+            self.primer3_design = config.primer3.design_params      
+
+        self.snp_window_size = config["snp_primer_design"]["snp_window_size"]
+        self.snp_top_n = config["snp_primer_design"]["snp_top_n"]
+        self.min_snps = config["snp_primer_design"]["min_snps"]  
 
     def run(self):
         print(f"Running with input type: {self.input_type}")
