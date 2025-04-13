@@ -1,4 +1,4 @@
-input_type: raw  # options: raw, prokka, panaroo
+input_type: raw  # options: raw, prokka, panaroo    # only raw fully implemented
 
 input_paths:
   raw_dir: "data/raw_genomes/"
@@ -21,8 +21,6 @@ primer3:
     PRIMER_NUM_RETURN: 1
     PRIMER_MAX_NS_ACCEPTED: 60
     PRIMER_LIBERAL_BASE: 1
-
-  design_params:
     PRIMER_MIN_SIZE: 16
     # PRIMER_OPT_SIZE: 20
     PRIMER_MAX_SIZE: 22

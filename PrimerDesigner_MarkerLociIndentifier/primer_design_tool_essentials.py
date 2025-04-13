@@ -479,7 +479,76 @@ class MSAStrategy:
         print(f"SNP density plots saved to: {plot_dir}")
         return plot_dir
 
-    def design_primers(self, species_folder):
+    def create_consensus_sequences(self, species_folder):
+        IUPAC_CODES = {
+            frozenset(["A"]): "A",
+            frozenset(["C"]): "C",
+            frozenset(["G"]): "G",
+            frozenset(["T"]): "T",
+            frozenset(["A", "G"]): "R",
+            frozenset(["C", "T"]): "Y",
+            frozenset(["G", "C"]): "S",
+            frozenset(["A", "T"]): "W",
+            frozenset(["G", "T"]): "K",
+            frozenset(["A", "C"]): "M",
+            frozenset(["A", "C", "G"]): "V",
+            frozenset(["A", "C", "T"]): "H",
+            frozenset(["A", "G", "T"]): "D",
+            frozenset(["C", "G", "T"]): "B",
+            frozenset(["A", "C", "G", "T"]): "N",
+        }
+
+        def bases_to_iupac(bases):
+            return IUPAC_CODES.get(frozenset(bases), "N")
+
+        def iupac_consensus_ignore_gaps(alignment, threshold=0.0):
+            consensus = ''
+            for i in range(alignment.get_alignment_length()):
+                column = alignment[:, i].replace("-", "").upper()
+                if not column:
+                    consensus += 'N'
+                    continue
+                count = Counter(column)
+                total = sum(count.values())
+                freq_bases = [base for base, freq in count.items() if freq / total >= threshold]
+                consensus += bases_to_iupac(freq_bases)
+            return Seq(consensus)
+
+        input_dir = os.path.join(self.output_dir, species_folder, "informative_loci")
+        output_dir = os.path.join(input_dir, "consensus_sequences")
+        os.makedirs(output_dir, exist_ok=True)
+
+        # Loop through all FASTA alignment files
+        for filename in os.listdir(input_dir):
+            if not filename.lower().endswith((".fa", ".fasta", ".fas")):
+                continue
+
+            filepath = os.path.join(input_dir, filename)
+
+            try:
+                alignment = AlignIO.read(filepath, "fasta")
+            except Exception as e:
+                print(f"Failed to read alignment from {filename}: {e}")
+                continue
+
+            # Compute IUPAC consensus ignoring gaps
+            consensus_seq = iupac_consensus_ignore_gaps(alignment, threshold=0.0)
+
+            consensus_record = SeqRecord(
+                consensus_seq,
+                id=os.path.splitext(filename)[0],
+                description="IUPAC consensus (gaps ignored)"
+            )
+
+            output_file = os.path.join(output_dir, f"{consensus_record.id}.fasta")
+            with open(output_file, "w") as out_handle:
+                SeqIO.write(consensus_record, out_handle, "fasta")
+
+            print(f"Consensus created for {filename}: {output_file}")
+
+        print("All done.")
+
+    def design_primers_from_snp(self, species_folder):
         input_dir = os.path.join(self.output_dir, species_folder, "informative_loci", "consensus_sequences")
         snp_summary_csv = self.snp_summary_csv
         target_species = species_folder
