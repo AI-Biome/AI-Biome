@@ -19,6 +19,8 @@ from Bio import SeqIO
 import glob
 from shutil import copyfile
 import re
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 @dataclass
 class InputPaths:
@@ -315,10 +317,11 @@ class MSAStrategy:
                 results[sp] = False
         return results
 
-    def assess_loci_by_species(self, species_folder, threshold=0.05, output_csv="snp_informative_summary.csv"):
+    def assess_loci_by_species(self, species_folder, threshold=0.05):
         input_dir = os.path.join(self.output_dir, species_folder, "panaroo_output","unaligned_gene_sequences","filtered_sequences", "aligned")
         output_dir = os.path.join(self.output_dir, species_folder, "informative_loci")
         os.makedirs(output_dir, exist_ok=True)
+        output_csv = os.path.join(output_dir, "snp_summary.csv")
 
         target_species = species_folder
 
@@ -395,6 +398,33 @@ class MSAStrategy:
         df.to_csv(output_csv, index=False)
 
         return df
+
+    def plot_informativeness_heatmap(self, csv_file, output_file="heatmap_informativeness.png"):
+        output_dir = os.path.join(self.output_dir, species_folder, "informative_loci")
+
+        df = pd.read_csv(csv_file)
+
+        prop_cols = [col for col in df.columns if col.startswith("Prop_") and col != "Avg_Prop_Informative_SNPs"]
+        if not prop_cols:
+            print("No proportion columns found in the dataset.")
+            return
+
+        heatmap_data = df.set_index("Locus")[prop_cols]
+
+        if "Avg_Prop_Informative_SNPs" in df.columns:
+            sorted_loci = df.sort_values("Avg_Prop_Informative_SNPs", ascending=False)["Locus"]
+            heatmap_data = heatmap_data.loc[sorted_loci]
+
+        plt.figure(figsize=(12, max(6, 0.3 * len(heatmap_data))))
+        sns.heatmap(heatmap_data, annot=False, cmap="YlOrRd", cbar_kws={'label': 'Proportion of Informative SNPs'})
+        plt.title("Informative SNP Proportions per Locus and Non-Target Species")
+        plt.xlabel("Non-Target Species")
+        plt.ylabel("Locus")
+        plt.tight_layout()
+        plt.savefig(output_file)
+        plt.close()
+
+        return output_file
 
     # --- Internal Classes ---
     
