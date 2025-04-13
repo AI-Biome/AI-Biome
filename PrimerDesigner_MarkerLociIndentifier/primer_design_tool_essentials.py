@@ -16,6 +16,7 @@ from datasketch import WeightedMinHashGenerator
 import time
 import statistics
 from Bio import SeqIO
+import glob
 
 @dataclass
 class InputPaths:
@@ -74,13 +75,13 @@ class ConfigLoader:
 class MSAStrategy:
     # --- Internal Methods ---
     
-    def run_prokka(self):
+    def run_prokka(self, species_folder):
         """
         Runs Prokka on all FASTA files in the specified input directory, saving results in a single output directory.
 
         """
         # Ensure the output directory exists
-        output_dir = os.path.join(self.output_dir, "prokka_output")
+        output_dir = os.path.join(self.output_dir, species_folder, "prokka_output")
         os.makedirs(output_dir, exist_ok=True)
 
         # Iterate over all files in the input directory
@@ -106,16 +107,38 @@ class MSAStrategy:
 
         print("All Prokka runs completed.")
 
-    def filter_unaligned_sequences(self):
-        input_dir = os.path.join(self.output_dir, "panaroo_output/unaligned_gene_sequences")
-        output_dir = os.path.join(self.output_dir, "panaroo_output/unaligned_gene_sequences/filtered_sequences")
+    def run_panaroo(self, species_folder):
+        input_dir = os.path.join(self.output_dir, species_folder, "prokka_output","gff")
+        output_dir = os.path.join(self.output_dir, species_folder, "panaroo_output")
+        os.makedirs(output_dir, exist_ok=True)        
+        gff_files = glob.glob(os.path.join(input_dir, "*.gff"))
+
+        if not gff_files:
+            raise FileNotFoundError(f"No .gff files found in {input_dir}")
+
+        cmd = [
+            "panaroo",
+            "-i", *gff_files,
+            "-o", output_dir,
+            "--clean-mode", "strict",
+            "-a", "core",
+            "--aligner", "none",
+            "--core_threshold", "0.98",
+            "-t", "31"
+        ]
+
+        subprocess.run(cmd, check=True)
+
+    def filter_unaligned_sequences(self, species_folder):
+        input_dir = os.path.join(self.output_dir, species_folder, "panaroo_output", "unaligned_gene_sequences")
+        output_dir = os.path.join(self.output_dir, species_folder, "panaroo_output","unaligned_gene_sequences","filtered_sequences")
         os.makedirs(output_dir, exist_ok=True)
 
-        for filename in os.listdir(self.input_dir):
+        for filename in os.listdir(input_dir):
             if not filename.lower().endswith((".fa", ".fasta", ".fas")):
                 continue
 
-            file_path = os.path.join(self.input_dir, filename)
+            file_path = os.path.join(input_dir, filename)
             sequences = list(SeqIO.parse(file_path, "fasta"))
             lengths = [len(seq.seq) for seq in sequences]
 
@@ -133,8 +156,8 @@ class MSAStrategy:
 
         print("Filtering loci based on length max and SD complete.")
 
-    def run_alignment(self):
-        unaligned_dir = os.path.join(self.output_dir, "panaroo_output/unaligned_gene_sequences/filtered_sequences")
+    def run_alignment(self, species_folder):
+        unaligned_dir = os.path.join(self.output_dir, species_folder, "panaroo_output","unaligned_gene_sequences","filtered_sequences")
         aligned_dir = os.path.join(unaligned_dir, "aligned")
         os.makedirs(aligned_dir, exist_ok=True)
 
