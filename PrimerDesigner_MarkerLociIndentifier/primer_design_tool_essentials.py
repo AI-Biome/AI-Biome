@@ -570,6 +570,9 @@ class MSAStrategy:
     def design_primers_from_snp(self, species_folder):
         input_dir = os.path.join(self.output_dir, species_folder, "informative_loci", "consensus_sequences")
         snp_summary_csv = self.snp_summary_csv
+
+        snp_summary_csv = os.path.join(self.output_dir, species_folder, "informative_loci", "snp_summary.csv")
+        
         target_species = species_folder
         output_dir = os.path.join(self.output_dir, species_folder, "primers")
         os.makedirs(output_dir, exist_ok=True)
@@ -620,16 +623,26 @@ class MSAStrategy:
                 continue
 
             global_args = self.primer3_global.copy()
-            global_args["PRIMER_PRODUCT_SIZE_RANGE"] = [[100, actual_window]]
+            min_product_size = self.primer3_global["PRIMER_PRODUCT_SIZE_RANGE"][0][0]
+            global_args["PRIMER_PRODUCT_SIZE_RANGE"] = [[min_product_size, actual_window]]
 
             result = primer3.bindings.designPrimers(
                 {
                     'SEQUENCE_ID': locus_name,
                     'SEQUENCE_TEMPLATE': seq,
-                    'SEQUENCE_INCLUDED_REGION': [best_start, actual_window],
+                    'SEQUENCE_TARGET': [best_start, actual_window],
                 },
                 global_args
             )
+
+            left_primer = result.get("PRIMER_LEFT_0_SEQUENCE")
+            right_primer = result.get("PRIMER_RIGHT_0_SEQUENCE")
+
+            if left_primer and right_primer:
+                locus_fasta_path = os.path.join(output_dir, f"{locus_name}_primers.fasta")
+                with open(locus_fasta_path, "w") as f:
+                    f.write(f">{locus_name}_LEFT\n{left_primer}\n")
+                    f.write(f">{locus_name}_RIGHT\n{right_primer}\n")
 
             primer_results.append({
                 "Locus": locus_name,
@@ -638,6 +651,10 @@ class MSAStrategy:
                 "Window_End": best_start + actual_window,
                 "LEFT_PRIMER": result.get("PRIMER_LEFT_0_SEQUENCE"),
                 "RIGHT_PRIMER": result.get("PRIMER_RIGHT_0_SEQUENCE"),
+                "LEFT_TM": result.get("PRIMER_LEFT_0_TM"),
+                "RIGHT_TM": result.get("PRIMER_RIGHT_0_TM"),
+                "LEFT_GC": result.get("PRIMER_LEFT_0_GC_PERCENT"),
+                "RIGHT_GC": result.get("PRIMER_RIGHT_0_GC_PERCENT"),
                 "PRODUCT_SIZE": result.get("PRIMER_PAIR_0_PRODUCT_SIZE")
             })
 
