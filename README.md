@@ -39,7 +39,7 @@ To quickly test the pipeline:
 3. From within the `toy_dataset/` directory, run:
 
 ```bash
-./primer_design_tool.sif
+./primer_design_tool_full.sif
 ```
 ---
 
