@@ -75,8 +75,6 @@ input/
 
 The configuration file defines all input paths, pipeline settings, and primer design parameters. Below is a breakdown of each section:
 
----
-
 ### `input_type`
 Specifies the format of the input data.
 
@@ -84,27 +82,19 @@ Specifies the format of the input data.
 - `prokka` – Input is in the form of Prokka-annotated files (not yet supported)
 - `panaroo` – Input comes from a Panaroo output folder (not yet supported)
 
----
-
 ### `input_paths`
 
 - `raw_dir`: Path to the directory containing raw genome input folders (one per species)
 - `prokka_dir`: Placeholder for Prokka input (set to `null`)
 - `panaroo_dir`: Placeholder for Panaroo input (set to `null`)
 
----
-
 ### `output_dir`
 
 - Directory where all output results, logs, and intermediate files will be stored.
 
----
-
 ### `max_cores`
 
 - Maximum number of CPU cores to use for multi-threaded steps (e.g. alignment, BLAT, Panaroo).
-
----
 
 ### `aligner`
 
@@ -114,21 +104,15 @@ Specifies the format of the input data.
   - `clustal`
   - `prank`
 
----
-
 ### `snp_avg_prop_threshold`
 
 - Minimum average proportion of informative SNPs a locus must have to be considered diagnostic and retained in downstream analysis.
-
----
 
 ### `primer3_config_file`
 
 - Path to an external Primer3 config file (not fully implemented).
 - If set, it overrides the `primer3.global_params` section.
 - **Keep as `null` for now.**
-
----
 
 ### `primer3.global_params`
 
@@ -141,8 +125,6 @@ Parameters passed directly to Primer3 for primer design. These include:
 - `PRIMER_MIN_TM` / `PRIMER_MAX_TM`: Minimum and maximum melting temperatures (°C)
 - `PRIMER_PRODUCT_SIZE_RANGE`: Desired size range for PCR products (e.g. `"500-1800"`)
 
----
-
 ### `snp_primer_design`
 
 Settings for SNP-aware primer design strategy:
@@ -150,8 +132,6 @@ Settings for SNP-aware primer design strategy:
 - `snp_window_size`: Size of the window (in bp) used to scan for SNP-rich regions
 - `snp_top_n`: Number of top-ranked loci to attempt primer design on
 - `min_snps`: Minimum number of informative SNPs required within a window to proceed with primer design
-
----
 
 ### `validation` (not fully implemented yet)
 
@@ -171,8 +151,6 @@ Contains Prokka annotation results for each genome. Automatically generated from
 
 ### `panaroo_output/`
 Stores results from Panaroo pan-genome analysis, used internally for identifying shared and variable loci.
-
----
 
 ### `informative_loci/` **(Key output for users)**
 
@@ -197,8 +175,6 @@ This file serves as the analytical foundation for selecting loci for downstream 
 - **`consensus_sequences/`**: consensus FASTA sequences of informative loci, used for primer design
 - **`snp_density_plots/`**: line plots showing SNP distributions across loci for visualization and interpretation
 
----
-
 ### `primers/` **(Key output for users)**
 
 Contains designed primer pairs targeting the most informative SNP-rich regions:
@@ -206,7 +182,5 @@ Contains designed primer pairs targeting the most informative SNP-rich regions:
 - `primer_design_summary.csv`: detailed summary of primer sequences, SNP coverage, Tm, GC content, and amplicon size
 - One FASTA file **per locus** containing the left and right primer sequences (`Locus_primers.fasta`)
 
----
-
-> All outputs are grouped by species to keep analyses modular and easily navigable.
+All outputs are grouped by species to keep analyses modular and easily navigable.
 
