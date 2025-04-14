@@ -255,6 +255,8 @@ class MSAStrategy:
         subprocess.run(cmd, check=True)
 
     def filter_unaligned_sequences(self, species_folder):
+        print("Filtering unaligned sequences...")
+
         input_dir = os.path.join(self.output_dir, species_folder, "panaroo_output", "unaligned_gene_sequences")
         output_dir = os.path.join(input_dir, "filtered_sequences")
         os.makedirs(output_dir, exist_ok=True)
@@ -270,7 +272,7 @@ class MSAStrategy:
             if not lengths:
                 continue
 
-            min_product_size, max_product_size = self.primer3_global["PRIMER_PRODUCT_SIZE_RANGE"][0]
+            min_product_size, max_product_size = self.primer3_global["PRIMER_PRODUCT_SIZE_RANGE"]
 
             median_size = (min_product_size + max_product_size) // 2
             max_stddev = int(median_size * 0.10)    # todo: make this user-defined?
@@ -704,6 +706,10 @@ class MSAStrategy:
             self.use_external_primer3_config = False
             self.primer3_global = config.primer3.global_params
 
+        if "PRIMER_PRODUCT_SIZE_RANGE" in self.primer3_global:
+            range_str = self.primer3_global["PRIMER_PRODUCT_SIZE_RANGE"]
+            self.primer3_global["PRIMER_PRODUCT_SIZE_RANGE"] = tuple(map(int, range_str.split("-")))
+
         self.snp_window_size = config.snp_primer_design.snp_window_size
         self.snp_top_n = config.snp_primer_design.snp_top_n
         self.min_snps = config.snp_primer_design.min_snps
@@ -737,8 +743,8 @@ class MSAStrategy:
 
             try:
                 # self.run_prokka(species)
-                self.collect_gff_files(species)
-                self.run_panaroo(species)
+                # self.collect_gff_files(species)
+                # self.run_panaroo(species)
                 self.filter_unaligned_sequences(species)
                 self.run_alignment(species)
                 self.assess_loci_by_species(species)
