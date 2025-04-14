@@ -9,7 +9,7 @@ To use the pipeline, you will need to have **Apptainer** installed on your syste
 Once Apptainer is installed, no further setup is required. Simply download the pipeline container available at (...) and run the pipeline using:
 
 ```bash
-./primer_design_tool.sif
+./primer_design_tool_full.sif
 ```
 
 This single .sif file encapsulates the entire environment, ensuring consistent and reproducible results across different systems.
@@ -161,4 +161,52 @@ Optional post-design validation settings using pBLAT:
 - `database`: Path to the reference `.2bit` database used for pBLAT validation
 - `pblat_min_identity`: Minimum identity threshold (%) for considering alignments
 - `match_median_filter_tolerance`: Allowed deviation in median match length between targets and non-targets
+
+## Output
+
+The pipeline generates an organized output directory containing results for each species. The top-level `output/` folder includes the following subdirectories:
+
+### `prokka_output/`
+Contains Prokka annotation results for each genome. Automatically generated from raw input if `input_type` is set to `raw`.
+
+### `panaroo_output/`
+Stores results from Panaroo pan-genome analysis, used internally for identifying shared and variable loci.
+
+---
+
+### `informative_loci/` **(Key output for users)**
+
+This folder contains loci identified as having high diagnostic potential based on SNP profiles:
+
+- **FASTA files** for each high-value locus
+- `heatmap_informativeness.png`: visual overview of SNP informativeness across loci and species
+- `snp_summary.csv`: tabular summary of all loci, including SNP positions, proportions, and informativeness scores
+
+The file `snp_summary.csv` provides a detailed summary of all analyzed loci with respect to their SNP-based diagnostic potential. For each locus, it includes:
+
+- The number and proportion of **informative SNPs** (per non-target species and averaged)
+- The **positions** of informative SNPs
+- The **median length** of aligned sequences in target and non-target genomes
+- The **difference in median lengths**, which may reflect indel-based divergence
+- A list of informative SNP **positions** and the **position range** that captures the majority of SNPs (±2 SD)
+
+This file serves as the analytical foundation for selecting loci for downstream primer design.
+
+#### Subfolders:
+
+- **`consensus_sequences/`**: consensus FASTA sequences of informative loci, used for primer design
+- **`snp_density_plots/`**: line plots showing SNP distributions across loci for visualization and interpretation
+
+---
+
+### `primers/` **(Key output for users)**
+
+Contains designed primer pairs targeting the most informative SNP-rich regions:
+
+- `primer_design_summary.csv`: detailed summary of primer sequences, SNP coverage, Tm, GC content, and amplicon size
+- One FASTA file **per locus** containing the left and right primer sequences (`Locus_primers.fasta`)
+
+---
+
+> All outputs are grouped by species to keep analyses modular and easily navigable.
 
