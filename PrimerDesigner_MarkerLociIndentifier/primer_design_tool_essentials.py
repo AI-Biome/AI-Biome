@@ -24,6 +24,8 @@ import re
 import seaborn as sns
 import matplotlib.pyplot as plt
 from collections import Counter
+from dataclasses import dataclass, field
+from typing import Optional, Dict
 
 
 @dataclass
@@ -40,20 +42,38 @@ class Primer3Params:
 
 
 @dataclass
+class SNPPrimerDesignParams:
+    snp_window_size: int
+    snp_top_n: int
+    min_snps: int
+
+
+@dataclass
+class ValidationConfig:
+    perform: str
+    database: str
+    pblat_min_identity: float
+    match_median_filter_tolerance: int
+
+
+@dataclass
 class Config:
     input_type: str
     input_paths: InputPaths
     output_dir: str
     max_cores: int
-    database_path: str
+    aligner: str
+    snp_avg_prop_threshold: float
     primer3_config_file: Optional[str] = None
     primer3: Primer3Params = field(default_factory=Primer3Params)
+    snp_primer_design: SNPPrimerDesignParams = field(default_factory=SNPPrimerDesignParams)
+    validation: ValidationConfig = field(default_factory=ValidationConfig)
 
     def __post_init__(self):
         allowed_inputs = {"raw", "prokka", "panaroo"}
         if self.input_type not in allowed_inputs:
             raise ValueError(f"`input_type` must be one of {allowed_inputs}, got: {self.input_type}")
-        
+
         active_dir = {
             "raw": self.input_paths.raw_dir,
             "prokka": self.input_paths.prokka_dir,
@@ -61,8 +81,7 @@ class Config:
         }[self.input_type]
         if not active_dir:
             raise ValueError(f"{self.input_type}_dir must be set in `input_paths` for input_type = {self.input_type}")
-        
-        # Primer3 configuration logic
+
         if self.primer3_config_file and self.primer3.global_params:
             print("Warning: primer3_config_file is set. Inline primer3 parameters will be ignored.")
 
@@ -640,7 +659,6 @@ class MSAStrategy:
         self.input_type = config.input_type
         self.output_dir = config.output_dir
         self.max_cores = config.max_cores
-        self.database_path = config.database_path
 
         self.input_dir = {
             "raw": config.input_paths.raw_dir,
@@ -649,18 +667,23 @@ class MSAStrategy:
         }[self.input_type]
 
         self.aligner = config.aligner
+        self.snp_avg_prop_threshold = config.snp_avg_prop_threshold
 
-        if config.primer3_config_file:  # todo
+        if config.primer3_config_file:
             self.use_external_primer3_config = True
             self.primer3_config_path = config.primer3_config_file
         else:
             self.use_external_primer3_config = False
             self.primer3_global = config.primer3.global_params
-            # self.primer3_design = config.primer3.design_params      
 
-        self.snp_window_size = config["snp_primer_design"]["snp_window_size"]
-        self.snp_top_n = config["snp_primer_design"]["snp_top_n"]
-        self.min_snps = config["snp_primer_design"]["min_snps"]  
+        self.snp_window_size = config.snp_primer_design.snp_window_size
+        self.snp_top_n = config.snp_primer_design.snp_top_n
+        self.min_snps = config.snp_primer_design.min_snps
+
+        self.perform_validation = config.validation.perform
+        self.validation_database = config.validation.database
+        self.pblat_min_identity = config.validation.pblat_min_identity
+        self.match_median_filter_tolerance = config.validation.match_median_filter_tolerance
 
     def run(self):
         print(f"Running with input type: {self.input_type}")
