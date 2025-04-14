@@ -49,6 +49,7 @@ At the top level of the input directory, there may also be a folder named non-ta
 
 An example input directory structure:
 
+```bash
 input/
 ├── Yersinia_pseudotuberculosis/
 │   ├── Yersinia_pseudotuberculosis_1.fasta
@@ -68,3 +69,4 @@ input/
     ├── Salmonella_enterica_1.fasta
     ├── Vibrio_cholerae_1.fasta
     └── Campylobacter_jejuni_1.fasta
+```
