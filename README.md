@@ -10,6 +10,7 @@ Once Apptainer is installed, no further setup is required. Simply download or cl
 
 ```bash
 ./primer_design_tool.sif
+```
 
 This single .sif file encapsulates the entire environment, ensuring consistent and reproducible results across different systems.
 
