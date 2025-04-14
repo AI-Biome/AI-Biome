@@ -1,59 +1,69 @@
 # Marker Loci Identification and Primer Design Tool
 
-This tool aims to find a minimal set of reliable markers for identification of given target species. Optionally, for each target species, a list of non-target closely related species may be specified.
+## Installation
 
-The marker regions are searched for within single-copy core genes only.
+This pipeline is distributed as a self-contained [Apptainer](https://apptainer.org/) (formerly known as Singularity) container, which includes all necessary dependencies and tools pre-installed.
 
-1. Pan-genome analysis
+To use the pipeline, you will need to have **Apptainer** installed on your system. Installation instructions are available on the [Apptainer documentation site](https://apptainer.org/docs/).
 
-Input genomes are annotated using Prokka (Seemann, 2014) and core genes are identified with Panaroo (Tonkin-Hill, 2020). Annotated sequences are saved to a local PostgreSQL database. Single-copy core genes are then queried from this database and saved in the multi-FASTA format.
-
-2. Multiple sequence alignment
-
-Single copy core genes are aligned using one of the following algorithms:
-
-* ClustalW
-* MUSCLE
-* MAFFT
-* probabilistic multiple alignment program PRANK (Löytynoja, 2014)
-
-3. Identification of conserved regions
-
-Identification of conserved regions for each species can be carried out by means of:
-* Consensus sequence
-* Shannon's entropy
-* Quasi-alignment-based method proposed by Nagar & Hahsler (2013)
-
-After finding species-specific marker regions, a coverage matrix is created showing which of the found markers can be used to reliably identify which of the target isolates. Based on this matrix, a minimal set of marker regions is selected.
-
-## Requirements
-
-- Python 3.x
-- External tools: Prokka, Panaroo, ClustalW, MUSCLE, MAFFT, PRANK, Minimap2, Primer3 (if using default primer design algorithm)
-- A reference database compatible with Minimap2 for sequence alignment
-
-## Usage
+Once Apptainer is installed, no further setup is required. Simply download or clone the project and run the pipeline container using:
 
 ```bash
-python marker_primer_tool.py [options]
+./primer_design_tool.sif
 
-# Options
+This single .sif file encapsulates the entire environment, ensuring consistent and reproducible results across different systems.
 
-Marker Loci Identification
--a, --alignment-tool (required): Alignment tool to use. Possible values: clustalw, muscle, mafft, prank.
--r, --reference-db (required): Path to the reference database for Minimap2.
--I, --identity-threshold: Identity threshold for Minimap2 (0-100).
--P, --proportion-threshold: Threshold for the proportion of correctly identified sequences (0-100).
--l, --min-length: Minimum length of conserved regions.
--g, --algorithm: Algorithm for finding conserved regions. Possible values: consensus_sequence, shannon_entropy, quasi_alignment.
+## Input
 
-Primer Design
--i, --input_file (required): The input file to process.
--o, --output_file (default: output.txt): The output file to write to.
--s, --strategy (required): Choose a general strategy - primer design only for the WGS dataset (amplicon) or identification of marker loci in the WGS dataset followed by the primer design for the identified marker loci (marker).
--a, --primer_design_algorithm (required): Choose a primer design algorithm. Possible values: primer3, custom.
--p, --primer3_parameters: Path to the Primer3 parameters config file.
--S, --primer_summarizing_algorithm (required): An algorithm for summarizing primers. Possible values: frequency, consensus.
--c, --specificity_check_algorithm (required): An algorithm for primer specificity checking. Only blast is currently supported.
--d, --database_for_specificity_check (required): A database for checking the specificity of primers.
--n, --n_most_frequent: A number of the most frequently occurring primers to further work with.
+To run the pipeline, you need:
+
+- A configuration file named `config.yaml`
+- A properly structured input directory with raw genome assemblies
+
+### Configuration File
+
+The file `config.yaml` must be placed in the **same directory as the container** (`primer_design_tool.sif`). It defines all global parameters, paths, and settings required for the analysis.
+
+---
+
+### Input Directory Structure
+
+Currently, the pipeline supports input in the form of **raw genome FASTA files** (annotation-based support coming soon).
+
+The input directory is organized by species. Each target species must have its own folder, named in the format Genus_species, where:
+
+Genus is the genus name (capitalized)
+
+species is the species name (lowercase)
+
+Inside each species folder:
+
+There must be one or more genome files in FASTA format
+
+Each FASTA file must be named exactly as the folder, with a suffix _i, where i is a unique integer (e.g., Yersinia_pseudotuberculosis_1.fasta)
+
+In addition, each species folder contains a subfolder named non-targets/, which holds genome files for closely related non-target species. These files follow the same naming rule: Genus_species_i.fasta.
+
+At the top level of the input directory, there may also be a folder named non-targets/. This contains additional non-target genome files that will be used in all comparisons, regardless of species.
+
+An example input directory structure:
+
+input/
+├── Yersinia_pseudotuberculosis/
+│   ├── Yersinia_pseudotuberculosis_1.fasta
+│   ├── Yersinia_pseudotuberculosis_2.fasta
+│   └── non-targets/
+│       ├── Yersinia_enterocolitica_1.fasta
+│       └── Yersinia_intermedia_1.fasta
+│
+├── Escherichia_coli/
+│   ├── Escherichia_coli_1.fasta
+│   ├── Escherichia_coli_2.fasta
+│   └── non-targets/
+│       ├── Shigella_sonnei_1.fasta
+│       └── Klebsiella_pneumoniae_1.fasta
+│
+└── non-targets/
+    ├── Salmonella_enterica_1.fasta
+    ├── Vibrio_cholerae_1.fasta
+    └── Campylobacter_jejuni_1.fasta
