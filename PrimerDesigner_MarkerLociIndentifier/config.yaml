@@ -1,4 +1,4 @@
-input_type: raw  # options: raw, prokka, panaroo    # only raw fully implemented
+input_type: raw  # options: raw, prokka, panaroo    # only "raw" fully implemented
 
 input_paths:
   raw_dir: "data/raw_genomes/"

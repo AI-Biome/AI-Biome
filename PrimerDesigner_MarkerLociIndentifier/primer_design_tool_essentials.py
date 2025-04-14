@@ -26,7 +26,8 @@ import matplotlib.pyplot as plt
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Optional, Dict
-
+import time
+import yaml
 
 @dataclass
 class InputPaths:
@@ -95,6 +96,8 @@ class ConfigLoader:
         # Parse nested dataclasses manually
         raw["input_paths"] = InputPaths(**raw.get("input_paths", {}))
         raw["primer3"] = Primer3Params(**raw.get("primer3", {}))
+        raw["snp_primer_design"] = SNPPrimerDesignParams(**raw.get("snp_primer_design", {}))
+        raw["validation"] = ValidationConfig(**raw.get("validation", {}))
 
         return Config(**raw)
 
@@ -201,6 +204,9 @@ class MSAStrategy:
                         '--outdir', output_dir,
                         '--prefix', species_name,
                         '--cpus', str(self.max_cores),
+                        '--centre', 'X',
+                        '--compliant',
+                        '--force',
                         entry_filepath
                     ]
 
@@ -214,7 +220,12 @@ class MSAStrategy:
         input_dir = os.path.join(self.output_dir, species_folder, "prokka_output")
         output_dir = os.path.join(input_dir, "gff")
         os.makedirs(output_dir, exist_ok=True)
-        for root, _, files in os.walk(input_dir):
+
+        for root, dirs, files in os.walk(input_dir):
+            # Skip the output_dir during traversal
+            if os.path.abspath(root).startswith(os.path.abspath(output_dir)):
+                continue
+
             for file in files:
                 if file.endswith(".gff"):
                     src = os.path.join(root, file)
@@ -709,10 +720,38 @@ class MSAStrategy:
         if self.use_external_primer3_config:
             print(f"Using external Primer3 config at {self.primer3_config_path}")
         else:
-            print(f"Designing primers with Tm range: {self.primer3_design.get('PRIMER_MIN_TM')} - {self.primer3_design.get('PRIMER_MAX_TM')}")
-            print(f"Product size range: {self.primer3_design.get('PRIMER_PRODUCT_SIZE_RANGE')}")
-            print(f"Primer size range: {self.primer3_design.get('PRIMER_MIN_SIZE')} - {self.primer3_design.get('PRIMER_MAX_SIZE')}")
-            print(f"Number of primers per locus: {self.primer3_global.get('PRIMER_NUM_RETURN')}")      
+            print(f"Designing primers with Tm range: {self.primer3_global.get('PRIMER_MIN_TM')} - {self.primer3_global.get('PRIMER_MAX_TM')}")
+            print(f"Product size range: {self.primer3_global.get('PRIMER_PRODUCT_SIZE_RANGE')}")
+            print(f"Primer size range: {self.primer3_global.get('PRIMER_MIN_SIZE')} - {self.primer3_global.get('PRIMER_MAX_SIZE')}")
+            print(f"Number of primers per locus: {self.primer3_global.get('PRIMER_NUM_RETURN')}")
+
+        self.standardize_fasta_headers()
+        self.non_target_dict = self.build_non_target_dict()
+
+        for species in self.non_target_dict:
+            if species == "global":
+                continue
+
+            print(f"\nRunning pipeline for species: {species}")
+            start_time = time.time()
+
+            try:
+                # self.run_prokka(species)
+                self.collect_gff_files(species)
+                self.run_panaroo(species)
+                self.filter_unaligned_sequences(species)
+                self.run_alignment(species)
+                self.assess_loci_by_species(species)
+                self.plot_informativeness_heatmap(species)
+                self.plot_snp_density_lines(species)
+                self.create_consensus_sequences(species)
+                self.design_primers_from_snp(species)
+
+            except Exception as e:
+                print(f"Error while processing {species}: {e}")
+
+            elapsed = time.time() - start_time
+            print(f"Finished {species} in {elapsed:.1f} seconds")      
 
 
 class QuasiAlignmentStrategy():
@@ -1882,15 +1921,7 @@ class QuasiAlignmentStrategy():
   
         
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="")
-    
-    parser.add_argument('-i', '--input_directory', default=".", help='An input directory.')
-    parser.add_argument('-s', '--species_csv', required=True, help='A CSV file with target and non-target species.')
-    parser.add_argument('-p', '--primer3_params', required=True, help='The Primer3 config file.')
-    parser.add_argument('-S', '--starting_point', default="panaroo_output", help='A starting point of the analysis. [genome_fasta_files | panaroo_output | processed_panaroo_output | selected_marker_regions]')
-
-    args = parser.parse_args()
-
-    strategy = QuasiAlignmentStrategy(args.species_csv, args.primer3_params)
-    strategy.design_primers(args.input_directory, starting_point=args.starting_point)
+    config = ConfigLoader.load("config.yaml")
+    runner = MSAStrategy(config)
+    runner.run()
 
