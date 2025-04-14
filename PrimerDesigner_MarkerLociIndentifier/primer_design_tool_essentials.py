@@ -15,9 +15,10 @@ import primer3
 from datasketch import WeightedMinHashGenerator
 import time
 import statistics
-from Bio import SeqIO
+from Bio import SeqIO, AlignIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
+from Bio.Align import MultipleSeqAlignment
 import glob
 from shutil import copyfile
 import re
@@ -28,6 +29,7 @@ from dataclasses import dataclass, field
 from typing import Optional, Dict
 import time
 import yaml
+
 
 @dataclass
 class InputPaths:
@@ -363,12 +365,16 @@ class MSAStrategy:
 
         summary = []
 
-        for file in os.listdir(species_folder):
+        for file in os.listdir(input_dir):
             if not file.endswith('.fasta') and not file.endswith('.fa'):
                 continue
-            path = os.path.join(species_folder, file)
+            path = os.path.join(input_dir, file)
+
             try:
-                alignment = AlignIO.read(path, 'fasta')
+                #alignment = AlignIO.read(path, 'fasta')
+                records = list(SeqIO.parse(path, "fasta"))
+                alignment = MultipleSeqAlignment(records)                
+
             except Exception:
                 continue
 
@@ -381,7 +387,7 @@ class MSAStrategy:
             informative_positions = {sp: [] for sp in informative_counts}
 
             for pos, col in enumerate(columns):
-                info_result = is_informative_site_by_species(col, target_species, species_set)
+                info_result = self.is_informative_site_by_species(col, target_species, species_set)
                 for sp, is_inf in info_result.items():
                     if is_inf:
                         informative_counts[sp] += 1
@@ -427,7 +433,7 @@ class MSAStrategy:
             summary.append(record)
 
             if avg_prop >= self.snp_avg_prop_threshold:
-                copy(path, output_dir)
+                shutil.copy(path, output_dir)
 
         df = pd.DataFrame(summary)
         df.sort_values(by='Avg_Prop_Informative_SNPs', ascending=False, inplace=True)
@@ -578,11 +584,10 @@ class MSAStrategy:
 
             print(f"Consensus created for {filename}: {output_file}")
 
-        print("All done.")
+        print("All consensus sequences created.")
 
     def design_primers_from_snp(self, species_folder):
         input_dir = os.path.join(self.output_dir, species_folder, "informative_loci", "consensus_sequences")
-        snp_summary_csv = self.snp_summary_csv
 
         snp_summary_csv = os.path.join(self.output_dir, species_folder, "informative_loci", "snp_summary.csv")
         
@@ -742,9 +747,9 @@ class MSAStrategy:
             start_time = time.time()
 
             try:
-                # self.run_prokka(species)
-                # self.collect_gff_files(species)
-                # self.run_panaroo(species)
+                self.run_prokka(species)
+                self.collect_gff_files(species)
+                self.run_panaroo(species)
                 self.filter_unaligned_sequences(species)
                 self.run_alignment(species)
                 self.assess_loci_by_species(species)
