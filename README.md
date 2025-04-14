@@ -6,7 +6,7 @@ This pipeline is distributed as a self-contained [Apptainer](https://apptainer.o
 
 To use the pipeline, you will need to have **Apptainer** installed on your system. Installation instructions are available on the [Apptainer documentation site](https://apptainer.org/docs/).
 
-Once Apptainer is installed, no further setup is required. Simply download the pipeline container available at (...) and run the pipeline using:
+Once Apptainer is installed, no further setup is required. Simply download the pipeline container available at https://nextcloud.uni-greifswald.de/index.php/s/CFPAgy82SSLicqN and run the pipeline using:
 
 ```bash
 ./primer_design_tool_full.sif
@@ -23,8 +23,24 @@ To run the pipeline, you need:
 
 ### Configuration File
 
-The file `config.yaml` must be placed in the **same directory as the container** (`primer_design_tool.sif`). It defines all global parameters, paths, and settings required for the analysis.
+The file `config.yaml` must be placed in the **same directory as the container** (`primer_design_tool_full.sif`). It defines all global parameters, paths, and settings required for the analysis (for details, see below).
 
+## Quick Start with Toy Dataset
+
+A toy dataset is provided in the `toy_dataset/` directory. It includes:
+
+- A small set of raw genome FASTA files organized in the correct input structure
+- A ready-to-use configuration file: `config.yaml`
+
+To quickly test the pipeline:
+
+1. **Download the `toy_dataset/` directory**
+2. **Place the Apptainer container** (`primer_design_tool_full.sif`) inside the `toy_dataset/` folder
+3. From within the `toy_dataset/` directory, run:
+
+```bash
+./primer_design_tool.sif
+```
 ---
 
 ### Input Directory Structure

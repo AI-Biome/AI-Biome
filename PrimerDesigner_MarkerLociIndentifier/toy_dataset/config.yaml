@@ -1,0 +1,42 @@
+input_type: raw  # options: raw, prokka, panaroo    # only raw fully implemented
+
+input_paths:
+  raw_dir: "data/raw_genomes/"
+  prokka_dir: null
+  panaroo_dir: null
+
+output_dir: "output/"
+
+max_cores: 8
+
+aligner: mafft # options: mafft, clustal, prank
+
+snp_avg_prop_threshold: 0.05
+
+primer3_config_file: null   # not fully implemented yet, please keep "null" here for now
+
+# If a path to the primer3 config file is specified via primer3_config_file, these parameters are ignored
+primer3:
+  global_params:
+    PRIMER_NUM_RETURN: 1
+    PRIMER_MAX_NS_ACCEPTED: 60
+    PRIMER_LIBERAL_BASE: 1
+    PRIMER_MIN_SIZE: 16
+    # PRIMER_OPT_SIZE: 20
+    PRIMER_MAX_SIZE: 22
+    PRIMER_MIN_TM: 43.0
+    # PRIMER_OPT_TM: 47.0
+    PRIMER_MAX_TM: 50.0
+    PRIMER_PRODUCT_SIZE_RANGE: "1000-1500"
+
+snp_primer_design:
+  snp_window_size: 250        # Size of the sliding window to search for informative SNP clusters
+  snp_top_n: 5                # Number of top loci (ranked by informativeness) to design primers for
+  min_snps: 3                 # Minimum number of informative SNPs required within a window to proceed
+
+validation:
+  perform: no
+  database: "db/GSR_seqs_taxa.2bit"
+  pblat_min_identity: 99.9
+  match_median_filter_tolerance: 10
+  
