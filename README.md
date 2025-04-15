@@ -1,4 +1,4 @@
-# Marker Loci Identification and Primer Design Tool
+# PRISTINE: PRimer-based Identification Suite Targeting Informative Nucleotide Elements
 
 ## Installation
 
