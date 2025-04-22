@@ -588,10 +588,7 @@ class MSAStrategy:
 
     def design_primers_from_snp(self, species_folder):
         input_dir = os.path.join(self.output_dir, species_folder, "informative_loci", "consensus_sequences")
-
         snp_summary_csv = os.path.join(self.output_dir, species_folder, "informative_loci", "snp_summary.csv")
-        
-        target_species = species_folder
         output_dir = os.path.join(self.output_dir, species_folder, "primers")
         os.makedirs(output_dir, exist_ok=True)
 
@@ -599,34 +596,40 @@ class MSAStrategy:
         top_n = self.snp_top_n
         min_snps = self.min_snps
 
-        os.makedirs(output_dir, exist_ok=True)
+        gap_tolerance = 20
 
         df = pd.read_csv(snp_summary_csv)
         top_loci = df.sort_values("Avg_Prop_Informative_SNPs", ascending=False).head(top_n)
+
+        snp_pos_columns = [col for col in df.columns if col.startswith("SNP_Pos_")]
 
         primer_results = []
 
         for _, row in top_loci.iterrows():
             locus_name = row["Locus"]
-            snp_col = f"SNP_Pos_{target_species}"
-            if snp_col not in row or pd.isna(row[snp_col]):
-                continue
+            target_windows = []
 
-            try:
-                snp_positions = sorted(set(map(int, row[snp_col].split(','))))
-            except ValueError:
-                continue
+            for col in snp_pos_columns:
+                if pd.isna(row[col]):
+                    continue
+                try:
+                    snp_positions = sorted(set(map(int, row[col].split(','))))
+                except ValueError:
+                    continue
 
-            best_start, best_count = 0, 0
-            for i in range(len(snp_positions)):
-                start = snp_positions[i]
-                end = start + window_size
-                count = sum(start <= x <= end for x in snp_positions)
-                if count > best_count:
-                    best_start = start
-                    best_count = count
+                best_start, best_count = None, 0
+                for i in range(len(snp_positions)):
+                    start = snp_positions[i]
+                    end = start + window_size
+                    count = sum(start <= x <= end for x in snp_positions)
+                    if count > best_count:
+                        best_start = start
+                        best_count = count
 
-            if best_count < min_snps:
+                if best_start is not None and best_count >= min_snps:
+                    target_windows.append((best_start, window_size))
+
+            if not target_windows:
                 continue
 
             fasta_path = os.path.join(input_dir, locus_name)
@@ -636,21 +639,68 @@ class MSAStrategy:
                 continue
 
             seq = str(record.seq)
-            actual_window = min(window_size, len(seq) - best_start)
-            if actual_window < 100:
+            merged_targets = []
+            target_windows.sort()
+
+            for start, length in target_windows:
+                end = start + length
+                if not merged_targets:
+                    merged_targets.append([start, end])
+                else:
+                    last_start, last_end = merged_targets[-1]
+                    if start <= last_end + gap_tolerance:
+                        merged_targets[-1][1] = max(last_end, end)
+                    else:
+                        merged_targets.append([start, end])
+
+            sequence_target = []
+            for start, end in merged_targets:
+                if end > len(seq):
+                    continue
+                sequence_target.extend([start, end - start])
+
+            if not sequence_target or len(sequence_target) < 2 or len(sequence_target) % 2 != 0:
                 continue
 
-            global_args = self.primer3_global.copy()
-            min_product_size = self.primer3_global["PRIMER_PRODUCT_SIZE_RANGE"][0][0]
-            global_args["PRIMER_PRODUCT_SIZE_RANGE"] = [[min_product_size, actual_window]]
+            starts = sequence_target[::2]
+            lengths = sequence_target[1::2]
+            ends = [start + length for start, length in zip(starts, lengths)]
 
-            result = primer3.bindings.designPrimers(
+            min_start = min(starts)
+            max_end = max(ends)
+            region_span = max_end - min_start
+
+            max_product_size = self.primer3_global["PRIMER_PRODUCT_SIZE_RANGE"][1]
+
+            if region_span > max_product_size:
+                snp_positions = []
+                for col in snp_pos_columns:
+                    if pd.isna(row[col]):
+                        continue
+                    try:
+                        snp_positions.extend(map(int, row[col].split(',')))
+                    except ValueError:
+                        continue
+                snp_positions = sorted(set(snp_positions))
+                best_start, best_count = None, 0
+                for pos in snp_positions:
+                    window_start = pos
+                    window_end = pos + max_product_size
+                    count = sum(window_start <= snp <= window_end for snp in snp_positions)
+                    if count > best_count:
+                        best_start = window_start
+                        best_count = count
+                if best_start is None:
+                    continue
+                sequence_target = [best_start, max_product_size]
+
+            result = primer3.bindings.design_primers(
                 {
                     'SEQUENCE_ID': locus_name,
                     'SEQUENCE_TEMPLATE': seq,
-                    'SEQUENCE_TARGET': [best_start, actual_window],
+                    # 'SEQUENCE_TARGET': sequence_target,
                 },
-                global_args
+                self.primer3_global
             )
 
             left_primer = result.get("PRIMER_LEFT_0_SEQUENCE")
@@ -659,22 +709,20 @@ class MSAStrategy:
             if left_primer and right_primer:
                 locus_fasta_path = os.path.join(output_dir, f"{locus_name}_primers.fasta")
                 with open(locus_fasta_path, "w") as f:
-                    f.write(f">{locus_name}_LEFT\n{left_primer}\n")
-                    f.write(f">{locus_name}_RIGHT\n{right_primer}\n")
+                    f.write(f">{locus_name}_LEFT\\n{left_primer}\\n")
+                    f.write(f">{locus_name}_RIGHT\\n{right_primer}\\n")
 
-            primer_results.append({
-                "Locus": locus_name,
-                "SNPs_Captured": best_count,
-                "Window_Start": best_start,
-                "Window_End": best_start + actual_window,
-                "LEFT_PRIMER": result.get("PRIMER_LEFT_0_SEQUENCE"),
-                "RIGHT_PRIMER": result.get("PRIMER_RIGHT_0_SEQUENCE"),
-                "LEFT_TM": result.get("PRIMER_LEFT_0_TM"),
-                "RIGHT_TM": result.get("PRIMER_RIGHT_0_TM"),
-                "LEFT_GC": result.get("PRIMER_LEFT_0_GC_PERCENT"),
-                "RIGHT_GC": result.get("PRIMER_RIGHT_0_GC_PERCENT"),
-                "PRODUCT_SIZE": result.get("PRIMER_PAIR_0_PRODUCT_SIZE")
-            })
+                primer_results.append({
+                    "Locus": locus_name,
+                    "Num_Target_Regions": len(sequence_target) // 2,
+                    "LEFT_PRIMER": left_primer,
+                    "RIGHT_PRIMER": right_primer,
+                    "LEFT_TM": result.get("PRIMER_LEFT_0_TM"),
+                    "RIGHT_TM": result.get("PRIMER_RIGHT_0_TM"),
+                    "LEFT_GC": result.get("PRIMER_LEFT_0_GC_PERCENT"),
+                    "RIGHT_GC": result.get("PRIMER_RIGHT_0_GC_PERCENT"),
+                    "PRODUCT_SIZE": result.get("PRIMER_PAIR_0_PRODUCT_SIZE")
+                })
 
         primer_df = pd.DataFrame(primer_results)
         output_path = os.path.join(output_dir, "primer_design_summary.csv")
