@@ -43,6 +43,10 @@ To quickly test the pipeline:
 ```
 ---
 
+## Pipeline overview
+
+![Pipeline Diagram](pipeline.svg)
+
 ### Input Directory Structure
 
 Currently, the pipeline supports input in the form of **raw genome FASTA files** (annotation-based support coming soon).
