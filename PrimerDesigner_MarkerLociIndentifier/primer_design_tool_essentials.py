@@ -729,6 +729,16 @@ class MSAStrategy:
         primer_df.to_csv(output_path, index=False)
 
         return primer_df
+        
+    def convert_primer_csv_to_ecopcr(self, input_csv, output_txt):
+        df = pd.read_csv(input_csv)
+        with open(output_txt, "w") as f:
+            for _, row in df.iterrows():
+                name = row.get("Locus", "Primer")
+                fwd = row.get("LEFT_PRIMER")
+                rev = row.get("RIGHT_PRIMER")
+                if pd.notna(fwd) and pd.notna(rev):
+                    f.write(f">{name}\n{fwd} {rev}\n")
 
     # --- Internal Classes ---
     
