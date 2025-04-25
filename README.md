@@ -45,7 +45,7 @@ To quickly test the pipeline:
 
 ## Pipeline overview
 
-![Pipeline Diagram](pipeline.svg)
+![Pipeline Diagram](PRISTINE-1.svg)
 
 ### Input Directory Structure
 
